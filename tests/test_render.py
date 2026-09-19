@@ -416,12 +416,88 @@ def test_colour_none_has_no_colour(images):
     assert all(cell.fg is None and cell.bg is None for row in canvas.cells for cell in row)
 
 
-def test_two_colour_mode_is_one_bit(images):
-    canvas = canvas_of(images["photo"], width=20, color="2")
+def test_colour_flags_never_change_the_glyph_grid(images):
+    """A colour depth may only add escapes; it must never add or drop glyphs.
+
+    This is the invariant that the empty-canvas bug violated: ``--color 2`` used
+    its own quantiser, so raising the colour depth silently deleted art.  It
+    holds for every mode and every depth.
+    """
+
+    for fixture in ("photo", "logo_dark", "logo_light", "shapes", "alpha"):
+        image = images[fixture]
+        for mode in ("ramp", "braille", "block", "edges"):
+            reference = None
+            for depth in ("none", "2", "8", "16", "256", "truecolor"):
+                canvas = render(
+                    image, RenderOptions(width=60, mode=mode), color_depth=depth
+                )
+                grid = tuple(canvas.line(y) for y in range(canvas.rows))
+                if reference is None:
+                    reference = grid
+                    assert any(line.strip() for line in grid), (
+                        f"{fixture}/{mode} with --color none produced no ink at all"
+                    )
+                else:
+                    assert grid == reference, f"{fixture}/{mode}: --color {depth} changed the glyphs"
+
+
+def test_two_colour_never_empties_a_low_contrast_logo(images):
+    """Regression: a flat mark on black used to render as an empty canvas.
+
+    Both fixtures are opaque and both have a tonal band entirely on one side of
+    mid-grey, which is the condition that broke a fixed 0.5 threshold.
+    """
+
+    for fixture in ("logo_dark", "logo_light"):
+        for background in ("dark", "light"):
+            canvas = render(
+                images[fixture],
+                RenderOptions(width=80, background=background),
+                color_depth="2",
+            )
+            assert canvas.ink_cells(), f"{fixture} with --background {background} drew nothing"
+
+
+def test_two_colour_has_exactly_two_colours(images):
+    canvas = render(images["logo_dark"], RenderOptions(width=40), color_depth="2")
     inks = {cell.fg for row in canvas.cells for cell in row if cell.fg}
     assert inks <= {(255, 255, 255), (0, 0, 0)}
-    glyphs = {cell.glyph for row in canvas.cells for cell in row if cell.glyph.strip()}
-    assert len(glyphs) == 1, "two colours total means one ink glyph plus blanks"
+    assert inks == {(255, 255, 255)}
+    dark_bg = render(
+        images["logo_dark"], RenderOptions(width=40, background="light"), color_depth="2"
+    )
+    assert {cell.fg for row in dark_bg.cells for cell in row if cell.fg} == {(0, 0, 0)}
+
+
+def test_two_colour_polarity_follows_the_background():
+    """Brighter content takes the ink on a dark terminal, darker on a light one."""
+
+    image = Image.new("RGB", (40, 20), (0, 0, 0))
+    for x in range(20, 40):
+        for y in range(20):
+            image.putpixel((x, y), (170, 170, 170))
+
+    ramp = build_ramp()
+    order = {ch: i for i, ch in enumerate(ramp.glyphs)}
+
+    def half_ink(canvas, left):
+        span = range(0, canvas.cols // 2) if left else range(canvas.cols // 2, canvas.cols)
+        return sum(order.get(canvas.cells[y][x].glyph, 0) for y in range(canvas.rows) for x in span)
+
+    dark = render(image, RenderOptions(width=20), color_depth="2")
+    assert half_ink(dark, left=False) > half_ink(dark, left=True), "bright half must be inked"
+
+    light = render(image, RenderOptions(width=20, background="light"), color_depth="2")
+    assert half_ink(light, left=True) > half_ink(light, left=False), "dark half must be inked"
+
+
+def test_two_colour_renders_in_every_mode(images):
+    """A tonal band that never approaches mid-grey still renders, in every mode."""
+
+    for mode in ("ramp", "braille", "block", "edges"):
+        canvas = render(images["logo_dark"], RenderOptions(width=80, mode=mode), color_depth="2")
+        assert canvas.ink_cells(), f"--mode {mode} --color 2 drew nothing"
 
 
 def test_truecolor_keeps_exact_colours(images):

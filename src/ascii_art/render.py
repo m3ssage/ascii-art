@@ -412,17 +412,15 @@ def _render_ramp(ctx: _Context) -> None:
         values.append(vrow)
         valids.append(krow)
 
-    if ctx.depth == "2":
-        # Two colours total: 1-bit ink using the ramp's two extremes.
-        indices = quantize(values, (0.0, 1.0), ctx.options.dither, ctx.options.seed, valids)
-        dense = ramp.glyphs[-1]
-        for y in range(rows):
-            for x in range(cols):
-                if valids[y][x] and indices[y][x]:
-                    canvas.cells[y][x].glyph = dense
-        _attach_cell_colors(ctx)
-        return
-
+    # Glyph selection is deliberately independent of --color.  It used to be
+    # otherwise for --color 2, which hard-thresholded luminance at mid-grey and
+    # emitted the densest glyph or nothing.  That collapses any image whose
+    # tonal band lies wholly on one side of 0.5: a flat-colour logo on black
+    # renders as an empty canvas, and the same logo on white as a solid block,
+    # because a fixed threshold is not a valid one-bit quantiser for an
+    # arbitrary image.  Using the measured ramp fixes the whole class, and the
+    # only input that can still produce an empty canvas is a single flat colour
+    # -- which is what a blank canvas means.
     indices = quantize(
         values, ramp.targets, ctx.options.dither, ctx.options.seed, valids
     )

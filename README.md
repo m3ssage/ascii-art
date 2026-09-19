@@ -98,6 +98,13 @@ print(to_text(canvas))
   upgrades on a TTY. `--output FILE` counts as a pipe. `--format html` assumes
   truecolour, because a colourless HTML file is useless.
 * `NO_COLOR` disables colour unless you pass `--color` explicitly.
+* **A colour depth never changes which glyphs are drawn** — it only changes
+  escapes. `--color 2` is two colours: the terminal background, plus one forced
+  ink colour (white for `--background dark`, black for light), with tone carried
+  by the measured ramp exactly as it is with `--color none`. This is asserted
+  across every mode and depth, because the alternative — giving a colour depth
+  its own quantiser — silently deletes art: a one-bit `--color 2` thresholded at
+  mid-grey and rendered a flat-colour logo on black as an empty canvas.
 * Downsampling is always an area average (a box filter over each cell's source
   rectangle). This is the single highest-leverage correctness fix over the
   incumbents, and it is why a fine checkerboard renders as flat grey instead of

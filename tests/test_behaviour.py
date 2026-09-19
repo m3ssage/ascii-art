@@ -294,6 +294,85 @@ def test_polite_output_has_no_cursor_control(run, paths):
         assert marker not in out
 
 
+# ------------------------------------------------------------------- colour
+
+
+def _strip_escapes(payload: bytes) -> bytes:
+    import re
+
+    return re.sub(rb"\x1b\[[0-9;]*m", b"", payload)
+
+
+def test_two_colour_renders_on_every_background(run, paths):
+    """Regression: `--color 2` drew an empty canvas on the default background.
+
+    The reported file is a flat brand colour with no tonal range: every opaque
+    pixel sat below mid-grey, so a fixed 0.5 threshold inked nothing at all.
+    """
+
+    for fixture in ("logo_dark", "logo_light"):
+        for background in (None, "dark", "light"):
+            args = [str(paths[fixture]), "--width", "80", "--color", "2"]
+            if background:
+                args += ["--background", background]
+            result = run(args)
+            assert result.returncode == 0, result.err
+            assert _strip_escapes(result.stdout).strip(), (
+                f"{fixture}: empty canvas with --background {background or 'omitted'}"
+            )
+
+
+def test_colour_depth_never_changes_the_glyphs(run, paths):
+    """Raising the colour depth may add escapes; it must never add or drop art."""
+
+    for fixture in ("logo_dark", "logo_light", "photo", "shapes"):
+        plain = _strip_escapes(
+            run([str(paths[fixture]), "--width", "60", "--color", "none"]).stdout
+        )
+        for depth in ("2", "8", "16", "256", "truecolor"):
+            coloured = _strip_escapes(
+                run([str(paths[fixture]), "--width", "60", "--color", depth]).stdout
+            )
+            assert coloured == plain, f"--color {depth} changed the art for {fixture}"
+
+
+def test_two_colour_background_neighbours(run, paths):
+    """`--color 2` with `--background` dark, light and omitted."""
+
+    image = str(paths["logo_dark"])
+    omitted = run([image, "--width", "80", "--color", "2"])
+    explicit_dark = run([image, "--width", "80", "--color", "2", "--background", "dark"])
+    automatic = run([image, "--width", "80", "--color", "2", "--background", "auto"])
+    light = run([image, "--width", "80", "--color", "2", "--background", "light"])
+
+    assert explicit_dark.returncode == light.returncode == 0
+    assert explicit_dark.stdout == omitted.stdout
+    assert automatic.stdout == omitted.stdout
+    assert light.stdout != omitted.stdout, "--background light must flip the polarity"
+    assert "\x1b[97m" in omitted.out, "dark background means white ink"
+    assert "\x1b[30m" in light.out, "light background means black ink"
+    # Both neighbours draw the same shape; only the glyphs' density differs.
+    assert _strip_escapes(light.stdout).replace(b" ", b"") != b""
+    assert len(_strip_escapes(light.stdout)) == len(_strip_escapes(omitted.stdout))
+
+
+def test_removing_a_flag_restores_the_default(run, paths):
+    """No flag may leak state: a default run is identical before and after."""
+
+    image = str(paths["logo_light"])
+    default = run([image, "--width", "60"]).stdout
+    run(
+        [
+            image, "--width", "60", "--color", "2", "--background", "light",
+            "--mode", "block", "--dither", "ordered", "--invert", "--seed", "3",
+        ]
+    )
+    assert run([image, "--width", "60"]).stdout == default
+    assert run([image, "--width", "60", "--color", "auto"]).stdout == default
+    assert run([image, "--width", "60", "--background", "auto"]).stdout == default
+    assert run([image, "--width", "60", "--dither", "none", "--seed", "0"]).stdout == default
+
+
 # ------------------------------------------------------------------ interface
 
 

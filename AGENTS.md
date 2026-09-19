@@ -40,6 +40,13 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - Braille blank cells are `U+2800`, never a plain space, so the grid survives
   whitespace-stripping pipelines. `render._has_ink` treats `U+2800` as inkless
   for colour attachment; use it rather than `str.strip()`.
+- **A colour depth must never change the glyph grid** — it may only add escapes.
+  `_attach_cell_colors`/`_attach_two_colour_grids` set colour and nothing else;
+  `--color 2` is the terminal background plus one forced ink colour, with tone
+  from the mode's own quantiser. A depth with its own quantiser is how an empty
+  canvas got shipped: thresholding luminance at mid-grey deletes every image
+  whose tonal band sits on one side of 0.5. `tests/test_render.py` asserts the
+  invariant across every mode and depth.
 - `--background light` flips the ink axis, not the image. Terminal *background*
   colours for alpha compositing are `palette.TERMINAL_DARK`/`TERMINAL_LIGHT`;
   `INK_ON_DARK`/`INK_ON_LIGHT` are the ink colours for `--color 2`. Confusing

@@ -63,6 +63,14 @@ output
   --format text is always plain.  No kitty/sixel/iTerm image protocol is ever
   emitted, under any circumstances.
 
+colour depth
+  --color 2 is two colours: the terminal background, plus one ink colour
+  chosen from --background (white for dark, black for light).  Tone comes from
+  the glyph ramp exactly as it does with --color none, so raising or lowering
+  the colour depth never adds or removes glyphs -- it only changes escapes.
+  Dithering has no effect with --color truecolor, where every colour is
+  representable.
+
 exit codes
   0 success   1 usage error   2 input error
 
@@ -161,7 +169,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="{none,2,8,16,256,truecolor,auto}",
         help="colour depth; auto resolves to none unless stdout is a terminal "
-        "(default: auto)",
+        "(default: auto).  '2' means two colours -- the terminal background "
+        "plus one forced ink colour -- with tone carried by the glyph ramp, "
+        "so a colour depth changes escapes and never the glyphs",
     )
     tone.add_argument(
         "--dither",

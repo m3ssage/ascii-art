@@ -207,6 +207,39 @@ def solid(value: int = 255, width: int = 100, height: int = 50) -> Image.Image:
     return Image.new("RGB", (width, height), (value, value, value))
 
 
+def _wordmark(
+    background: tuple, ink: tuple, width: int, height: int
+) -> Image.Image:
+    image = Image.new("RGB", (width, height), background)
+    draw = ImageDraw.Draw(image)
+    draw.text((14, 34), "Rabobank", fill=ink, font=_font(46))
+    return image
+
+
+def logo_light(width: int = 320, height: int = 120) -> Image.Image:
+    """A light-dominant *opaque* logo: a pale mark on a near-white plate.
+
+    No alpha, and every cell sits above mid-grey.  That is the half of the tone
+    range a fixed 0.5 threshold gets wrong: a 1-bit render inked the whole plate
+    as a solid block on a dark background, and vanished entirely under
+    ``--background light``.  Both halves are asserted in the tests.
+    """
+
+    return _wordmark((247, 247, 245), (130, 160, 210), width, height)
+
+
+def logo_dark(width: int = 320, height: int = 120) -> Image.Image:
+    """A dark *opaque* logo with a narrow tonal band: a flat mark on black.
+
+    The opaque pixels all sit near 0.22 luminance, so a fixed 0.5 threshold inks
+    nothing at all and the canvas came out empty on the default background.
+    This is the shape of the file the empty-canvas bug was reported with: a flat
+    brand colour, no tonal range, black surround.
+    """
+
+    return _wordmark((0, 0, 0), (40, 55, 120), width, height)
+
+
 def tricolor_gif(path: Path) -> Path:
     """A three-frame animated GIF, used to prove we terminate on frame one."""
 
@@ -252,6 +285,8 @@ FIXTURES = {
     "ramp": ramp_gradient,
     "checker": checker,
     "alpha": alpha_probe,
+    "logo_light": logo_light,
+    "logo_dark": logo_dark,
 }
 
 
@@ -286,6 +321,8 @@ __all__ = [
     "checker",
     "circle",
     "exif_rotated",
+    "logo_dark",
+    "logo_light",
     "photo",
     "ramp_gradient",
     "shapes",
