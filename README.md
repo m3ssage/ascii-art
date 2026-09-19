@@ -109,8 +109,10 @@ $ .venv/bin/ascii-art examples/sunflower.jpg --width 60 --chars " .:-=+*#%@"
 :::::=**###****######********=*#*#####*+:::::::::::::==:::::
 ```
 
-Rerun that command against the committed file to reproduce the block above; the
-crop is baked into `examples/sunflower.jpg`, because the tool has no crop flag.
+Rerun that command against the committed file to reproduce the block above.
+The ramp was measured with JetBrainsMono Nerd Font, so another installed
+monospace font can put different glyphs in the cells. The crop is baked into
+`examples/sunflower.jpg`, because the tool has no crop flag.
 Photo: Pexels, photo 31284696 (pexels.com) — free to use and redistribute.
 
 ## The option surface
