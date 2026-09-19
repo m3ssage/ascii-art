@@ -12,7 +12,7 @@ from __future__ import annotations
 
 __version__ = "1.0.0"
 
-from .canvas import Canvas, Cell
+from .canvas import BRAILLE_BLANK, Canvas, Cell, has_ink
 from .errors import AsciiArtError, InputError, UsageError
 from .filters import FilterSpec
 from .fonts import find_mono_font_path, measure_coverage
@@ -26,6 +26,7 @@ from .render import MODES, RenderOptions, render
 
 __all__ = [
     "AsciiArtError",
+    "BRAILLE_BLANK",
     "Canvas",
     "Cell",
     "DEFAULT_RAMP",
@@ -42,6 +43,7 @@ __all__ = [
     "compute_geometry",
     "find_mono_font_path",
     "format_canvas",
+    "has_ink",
     "load_image",
     "measure_coverage",
     "measure_canvas",

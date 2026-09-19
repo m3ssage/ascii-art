@@ -15,8 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from ascii_art import RenderOptions, render
-from ascii_art.render import _has_ink
+from ascii_art import RenderOptions, has_ink, render
 
 from cases import CASES, measure_case
 
@@ -159,7 +158,7 @@ def test_alpha_probe(images):
             1
             for y in range(canvas.rows)
             for x in range(lo, hi)
-            if _has_ink(canvas.cells[y][x].glyph)
+            if has_ink(canvas.cells[y][x].glyph)
         )
         for lo, hi in ((0, third), (third, 2 * third), (2 * third, canvas.cols))
     ]

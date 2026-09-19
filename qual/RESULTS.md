@@ -152,6 +152,44 @@ still beats `chafa`'s braille on both axes.
 | §6.3.6 two runs are byte-identical | identical, including seeded noise |
 | §6.3.7 checkerboard must not alias | a single glyph across the whole grid |
 | §6.3.8 12 MP source at 200x100 cells in the incumbent band | ~0.3 s (incumbents: 0.34-0.78 s) |
+| no render mode draws an empty canvas for non-uniform content | 4 modes x 8 tonal bands x 2 backgrounds all render; only a uniform colour is blank |
+
+## Two defects found after the first pass
+
+Both were reported against the `Rabobank` logo that motivated them, and both
+were the same mistake in different places: **a fixed absolute threshold is not a
+valid quantiser for an arbitrary image.** Content whose whole tonal band sits on
+one side of the threshold collapses to all-or-nothing, and for a 1-bit mode
+that means a blank canvas.
+
+* `--color 2` had its own quantiser that thresholded luminance at mid-grey. The
+  reported file is a flat wordmark at ~0.22 luminance on black, so nothing was
+  inked; the same file on a light background was a solid block. Fixed by
+  deleting the special case: `--color 2` is now two colours -- the terminal
+  background plus one forced ink colour -- with tone carried by the measured
+  ramp, exactly as every other depth and every other mode already did.
+* Braille resolved its dots against a fixed 0.5. Measured with the band probe,
+  it drew nothing for every band that sat wholly on one side of mid-grey: 0.00
+  to 0.22 and 0.12 to 0.23 on a dark background, 0.60 to 0.95 and 0.95 to 1.00
+  on a light one. Block and ramp had the same failure in a much narrower window
+  (their cell means and 70 levels collapse only within ~1/5 and ~1/70 of black
+  or white), and `edges` failed when the alpha mask excluded every cell that
+  carried a gradient.
+
+Both are now handled in one place. `ascii_art.dither.quantize` re-maps the
+valid range across the quantiser's own range when -- and only when -- the direct
+quantisation returns a constant *extreme* level for non-uniform content, and
+`_render_edges` falls back to the strongest gradient over the valid cells when
+its cutoff would draw nothing. A constant canvas at an intermediate level is
+left alone: a checkerboard whose cells average 0.498 to 0.502 has no structure
+to recover, and stretching 1% of numerical variation across the ramp would turn
+an anti-aliasing probe into a black-and-white pattern. A flat colour still
+renders flat.
+
+That is why **no measured number above moved**: the recovery only fires on
+all-or-nothing canvases, and none of the report's probes are degenerate. The
+head-to-head table in this file is byte-identical before and after both fixes,
+as is `tests/baselines.json`.
 
 ## Reproducing
 

@@ -105,6 +105,13 @@ print(to_text(canvas))
   across every mode and depth, because the alternative — giving a colour depth
   its own quantiser — silently deletes art: a one-bit `--color 2` thresholded at
   mid-grey and rendered a flat-colour logo on black as an empty canvas.
+* **No mode draws an empty canvas for content that exists.** A fixed threshold
+  is not a valid quantiser for an arbitrary image: content whose tonal band sits
+  wholly on one side of it collapses to nothing. So when a mode's quantiser
+  would return an all-blank or all-saturated canvas for non-uniform content, the
+  valid range is re-mapped across that quantiser's range and the render is
+  retried. Ordinary images are untouched — a flat colour still renders flat and
+  a checkerboard still renders uniform — so no measured result changes.
 * Downsampling is always an area average (a box filter over each cell's source
   rectangle). This is the single highest-leverage correctness fix over the
   incumbents, and it is why a fine checkerboard renders as flat grey instead of

@@ -18,7 +18,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 from PIL import Image
 
-from .canvas import RGB, Canvas, average_rgb, blank_canvas
+from .canvas import RGB, Canvas, average_rgb, blank_canvas, has_ink
 from .dither import DITHER_MODES, quantize
 from .errors import UsageError
 from .filters import FilterSpec, apply_filters
@@ -289,16 +289,6 @@ def _luminance_grid(raw: bytes, count: int) -> List[float]:
     return out
 
 
-def _has_ink(glyph: str) -> bool:
-    """Whether a glyph puts ink on the page.
-
-    ``U+2800 BRAILLE PATTERN BLANK`` is a real glyph with no dots; it is used to
-    keep the grid's shape, so it must not attract a colour escape.
-    """
-
-    return bool(glyph.strip()) and glyph != "\u2800"
-
-
 def _cell_rgb(ctx: _Context, y: int, x: int) -> RGB:
     o = (y * ctx.canvas.cols + x) * 3
     return (ctx.cell_raw[o], ctx.cell_raw[o + 1], ctx.cell_raw[o + 2])
@@ -321,12 +311,12 @@ def _attach_cell_colors(ctx: _Context) -> None:
         for y in range(canvas.rows):
             row = canvas.cells[y]
             for x in range(canvas.cols):
-                if _has_ink(row[x].glyph):
+                if has_ink(row[x].glyph):
                     row[x].fg = ink
         return
 
     cols, rows = canvas.cols, canvas.rows
-    ink_grid = [[_has_ink(canvas.cells[y][x].glyph) for x in range(cols)] for y in range(rows)]
+    ink_grid = [[has_ink(canvas.cells[y][x].glyph) for x in range(cols)] for y in range(rows)]
     grid = [[_cell_rgb(ctx, y, x) for x in range(cols)] for y in range(rows)]
 
     palette = palette_for_depth(depth)
@@ -638,13 +628,30 @@ def _render_edges(ctx: _Context) -> None:
         _attach_cell_colors(ctx)
         return
 
-    cutoff = ctx.options.edge_threshold * peak
-    for y in range(rows):
-        for x in range(cols):
-            i = y * cols + x
-            if not ctx.valid[i] or magnitudes[i] < cutoff:
-                continue
-            canvas.cells[y][x].glyph = _EDGE_GLYPHS[directions[i]]
+    def above(cutoff: float) -> List[tuple]:
+        return [
+            (y, x, directions[y * cols + x])
+            for y in range(rows)
+            for x in range(cols)
+            if ctx.valid[y * cols + x] and magnitudes[y * cols + x] >= cutoff
+        ]
+
+    pending = above(ctx.options.edge_threshold * peak)
+    if not pending:
+        # A fraction of the global peak is not a usable cutoff when the only
+        # strong gradients sit in cells the alpha mask excluded: the content is
+        # non-uniform but nothing gets drawn.  Fall back to the strongest
+        # gradient over the *valid* cells, so this mode cannot return a constant
+        # canvas for an image that has valid, non-uniform content.  A genuinely
+        # flat image still draws nothing, because its valid peak is zero.
+        valid_peak = max(
+            (magnitudes[i] for i in range(cols * rows) if ctx.valid[i]), default=0.0
+        )
+        if valid_peak > 0.0:
+            pending = above(valid_peak)
+
+    for y, x, direction in pending:
+        canvas.cells[y][x].glyph = _EDGE_GLYPHS[direction]
 
     _attach_cell_colors(ctx)
 

@@ -74,6 +74,13 @@ colour depth
 exit codes
   0 success   1 usage error   2 input error
 
+guarantees
+  stdout is plain text unless colour was requested, and no pixel protocol is
+  ever emitted.  No mode returns an empty canvas for an image that has content:
+  when the whole tonal band would fall on one side of a mode's threshold, the
+  valid range is re-mapped across that quantiser's range so the content is still
+  drawn.  A flat colour still renders flat.
+
 examples
   ascii-art logo.png
   ascii-art --width 100 --mode braille --dither diffusion photo.jpg

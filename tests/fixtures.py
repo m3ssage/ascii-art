@@ -240,6 +240,41 @@ def logo_dark(width: int = 320, height: int = 120) -> Image.Image:
     return _wordmark((0, 0, 0), (40, 55, 120), width, height)
 
 
+def tonal_band(
+    low: float, high: float, transparent: bool = False,
+    width: int = 200, height: int = 80,
+) -> Image.Image:
+    """A flat-colour mark whose ink luminance sits in ``[low, high]``.
+
+    Sweeping the band walks the content across every quantiser's threshold, so a
+    mode that collapses for some corner of the tone range cannot hide.  Opaque by
+    default; ``transparent=True`` gives the shape of the file the empty-canvas
+    bugs were reported with (content only where alpha is set).
+    """
+
+    plate = (round(low * 255),) * 3
+    ink = (round(high * 255),) * 3
+    image = Image.new("RGBA", (width, height), (*plate, 0 if transparent else 255))
+    draw = ImageDraw.Draw(image)
+    draw.text((8, 20), "Rabobank 0123", fill=(*ink, 255), font=_serif(34))
+    return image
+
+
+#: Luminance bands from near-black to near-white, including every band that sits
+#: wholly on one side of mid-grey -- the condition that collapses a fixed
+#: threshold quantiser.
+TONE_BANDS = (
+    (0.00, 0.03),
+    (0.00, 0.22),
+    (0.12, 0.23),
+    (0.30, 0.45),
+    (0.45, 0.55),
+    (0.60, 0.95),
+    (0.95, 1.00),
+    (0.05, 0.98),
+)
+
+
 def tricolor_gif(path: Path) -> Path:
     """A three-frame animated GIF, used to prove we terminate on frame one."""
 
@@ -316,6 +351,7 @@ def write_all(directory: Path, include_big: bool = False) -> dict:
 __all__ = [
     "FIXTURES",
     "TEXT_LINES",
+    "TONE_BANDS",
     "alpha_probe",
     "big",
     "checker",
@@ -328,6 +364,7 @@ __all__ = [
     "shapes",
     "solid",
     "text_image",
+    "tonal_band",
     "tricolor_gif",
     "write_all",
 ]

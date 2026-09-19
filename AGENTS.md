@@ -38,8 +38,20 @@ This file is the project's committed home for project-intrinsic agent knowledge:
   numbers were produced with it. Switching to a box filter moved `RMSE_fit` by a
   factor of three on the same output.
 - Braille blank cells are `U+2800`, never a plain space, so the grid survives
-  whitespace-stripping pipelines. `render._has_ink` treats `U+2800` as inkless
-  for colour attachment; use it rather than `str.strip()`.
+  whitespace-stripping pipelines.
+- **A fixed absolute threshold is not a valid quantiser for an arbitrary
+  image.** Content whose tonal band sits on one side of it collapses to
+  all-or-nothing, and for a 1-bit mode that is a blank canvas. `dither.quantize`
+  re-maps the valid range across the quantiser's range when (and only when) the
+  direct pass returns a constant *extreme* level for non-uniform content;
+  `_render_edges` does the same job for its peak-relative cutoff. Keep the
+  recovery that narrow -- a constant canvas at an intermediate level is faithful
+  (a checkerboard must stay uniform), and uniform input must never be stretched.
+  The band sweep in `tests/test_render.py` is the guard.
+- **`has_ink` in `canvas.py`, never `str.strip()`.** `U+2800 BRAILLE PATTERN
+  BLANK` is not whitespace, so it survives a strip while drawing nothing, and
+  `ink_cells()` would then report a blank braille canvas as full of ink. That
+  false pass hid the braille collapse once already.
 - **A colour depth must never change the glyph grid** — it may only add escapes.
   `_attach_cell_colors`/`_attach_two_colour_grids` set colour and nothing else;
   `--color 2` is the terminal background plus one forced ink colour, with tone

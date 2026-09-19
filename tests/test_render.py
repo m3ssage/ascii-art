@@ -11,13 +11,16 @@ from collections import Counter
 import pytest
 from PIL import Image
 
+import fixtures
+
 from ascii_art import RenderOptions, load_image, render, to_text
 from ascii_art.dither import quantize
 from ascii_art.errors import InputError, UsageError
 from ascii_art.filters import FilterSpec, apply_filters
 from ascii_art.geometry import parse_font_ratio, parse_size
 from ascii_art.ramp import build_ramp, coverage_map
-from ascii_art.render import _QUADRANT_GLYPHS, _has_ink
+from ascii_art.canvas import has_ink
+from ascii_art.render import _QUADRANT_GLYPHS
 
 pytestmark = pytest.mark.render
 
@@ -143,7 +146,7 @@ def test_transparency_produces_ink_only_where_opaque(images):
     canvas = canvas_of(images["alpha"], width=60)
     third = canvas.cols // 3
     counts = [
-        sum(1 for y in range(canvas.rows) for x in range(lo, hi) if _has_ink(canvas.cells[y][x].glyph))
+        sum(1 for y in range(canvas.rows) for x in range(lo, hi) if has_ink(canvas.cells[y][x].glyph))
         for lo, hi in ((0, third), (third, 2 * third), (2 * third, canvas.cols))
     ]
     assert counts[0] == 0, "transparent pixels must be no ink"
@@ -153,14 +156,14 @@ def test_transparency_produces_ink_only_where_opaque(images):
 
 def test_transparency_is_the_default(images):
     assert RenderOptions().alpha == "transparent"
-    assert _has_ink(canvas_of(images["alpha"], width=30).cells[0][0].glyph) is False
+    assert has_ink(canvas_of(images["alpha"], width=30).cells[0][0].glyph) is False
 
 
 def test_alpha_composite_fills_the_whole_frame(images):
     canvas = canvas_of(
         images["alpha"], width=30, alpha="composite", alpha_bg=(255, 255, 255)
     )
-    assert all(_has_ink(canvas.cells[y][x].glyph) for y in range(canvas.rows) for x in range(canvas.cols))
+    assert all(has_ink(canvas.cells[y][x].glyph) for y in range(canvas.rows) for x in range(canvas.cols))
 
 
 def test_alpha_composite_fades_toward_the_declared_terminal_background():
@@ -191,8 +194,8 @@ def test_alpha_bg_changes_the_composited_colour():
 
 def test_alpha_threshold_is_honoured():
     image = Image.new("RGBA", (20, 20), (255, 255, 255, 100))
-    assert _has_ink(canvas_of(image, width=10, alpha_threshold=90).cells[0][0].glyph)
-    assert not _has_ink(canvas_of(image, width=10, alpha_threshold=200).cells[0][0].glyph)
+    assert has_ink(canvas_of(image, width=10, alpha_threshold=90).cells[0][0].glyph)
+    assert not has_ink(canvas_of(image, width=10, alpha_threshold=200).cells[0][0].glyph)
 
 
 # ---------------------------------------------------------------- background
@@ -202,8 +205,8 @@ def test_background_flips_the_ink_polarity():
     white = Image.new("RGB", (20, 20), (255, 255, 255))
     dark = canvas_of(white, width=10)
     light = canvas_of(white, width=10, background="light")
-    assert _has_ink(dark.cells[0][0].glyph), "bright image on a dark terminal needs dense ink"
-    assert not _has_ink(light.cells[0][0].glyph), "bright image on a light terminal needs no ink"
+    assert has_ink(dark.cells[0][0].glyph), "bright image on a dark terminal needs dense ink"
+    assert not has_ink(light.cells[0][0].glyph), "bright image on a light terminal needs no ink"
 
 
 def test_background_auto_is_dark():
@@ -216,8 +219,8 @@ def test_invert_filter_flips_the_image():
     white = Image.new("RGB", (20, 20), (255, 255, 255))
     plain = canvas_of(white, width=10)
     inverted = canvas_of(white, width=10, filters=FilterSpec(invert=True))
-    assert _has_ink(plain.cells[0][0].glyph)
-    assert not _has_ink(inverted.cells[0][0].glyph)
+    assert has_ink(plain.cells[0][0].glyph)
+    assert not has_ink(inverted.cells[0][0].glyph)
 
 
 # ----------------------------------------------------------------------- ramp
@@ -498,6 +501,91 @@ def test_two_colour_renders_in_every_mode(images):
     for mode in ("ramp", "braille", "block", "edges"):
         canvas = render(images["logo_dark"], RenderOptions(width=80, mode=mode), color_depth="2")
         assert canvas.ink_cells(), f"--mode {mode} --color 2 drew nothing"
+
+
+def test_quantize_recovers_only_from_all_or_nothing():
+    """The degenerate-output rescue has to be narrow enough to be safe.
+
+    A nearly-flat mid-grey grid must be left exactly as it quantised, or an
+    anti-aliased checkerboard would be stretched into a black-and-white pattern.
+    """
+
+    targets = (0.0, 0.5, 1.0)
+
+    flat_mid = [[0.499, 0.501], [0.500, 0.499]]
+    assert quantize(flat_mid, targets) == quantize(
+        flat_mid, targets, recover_degenerate=False
+    )
+
+    dark = [[0.01, 0.03], [0.02, 0.04]]
+    assert {i for row in quantize(dark, targets, recover_degenerate=False) for i in row} == {0}
+    assert len({i for row in quantize(dark, targets) for i in row}) > 1
+
+    uniform = [[0.02, 0.02], [0.02, 0.02]]
+    assert {i for row in quantize(uniform, targets) for i in row} == {0}
+
+
+@pytest.mark.parametrize("mode", ["ramp", "braille", "block", "edges"])
+@pytest.mark.parametrize("background", ["dark", "light"])
+@pytest.mark.parametrize("band", fixtures.TONE_BANDS)
+def test_no_mode_draws_an_empty_canvas_for_non_uniform_content(mode, background, band):
+    """The guarantee: content that exists must be drawn, whatever its tone.
+
+    A fixed absolute threshold collapses any image whose tonal band sits wholly
+    on one side of it.  Braille on a transparent-background logo was the
+    reported symptom; all-or-nothing is the tested property.
+    """
+
+    image = fixtures.tonal_band(*band)
+    canvas = render(
+        image, RenderOptions(width=60, mode=mode, background=background), color_depth="none"
+    )
+    assert canvas.ink_cells(), f"--mode {mode} --background {background} on band {band} drew nothing"
+
+
+def test_transparent_plate_low_contrast_logo_renders_in_every_mode(images):
+    """The reported file's shape: content only where alpha is set."""
+
+    for fixture in ("logo_dark", "logo_light"):
+        for mode in ("ramp", "braille", "block", "edges"):
+            for background in ("dark", "light"):
+                canvas = render(
+                    images[fixture],
+                    RenderOptions(width=80, mode=mode, background=background),
+                    color_depth="none",
+                )
+                assert canvas.ink_cells(), (
+                    f"{fixture} --mode {mode} --background {background} drew nothing"
+                )
+
+
+def test_edges_mode_falls_back_when_alpha_hides_every_edge():
+    """A cutoff relative to the global peak can exclude every *valid* gradient."""
+
+    image = fixtures.tonal_band(0.60, 0.95, transparent=True)
+    canvas = render(
+        image, RenderOptions(width=60, mode="edges", background="light"), color_depth="none"
+    )
+    assert canvas.ink_cells()
+
+
+def test_edges_mode_still_draws_nothing_for_flat_content():
+    """The fallback must not invent edges where there is no content.
+
+    Only the interior is asserted.  ``_render_edges`` samples outside the image
+    as 0.0, so the outermost row and column read as a step edge and have always
+    been drawn; that is unrelated to the collapse recovery and is left alone.
+    """
+
+    flat = Image.new("RGB", (60, 30), (128, 128, 128))
+    canvas = render(flat, RenderOptions(width=30, mode="edges"), color_depth="none")
+    interior = [
+        (x, y)
+        for y in range(1, canvas.rows - 1)
+        for x in range(1, canvas.cols - 1)
+        if has_ink(canvas.cells[y][x].glyph)
+    ]
+    assert not interior
 
 
 def test_truecolor_keeps_exact_colours(images):

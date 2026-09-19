@@ -66,7 +66,126 @@ def _mean_step(targets: Sequence[float]) -> float:
     return (targets[-1] - targets[0]) / (len(targets) - 1)
 
 
+def _valid_range(
+    values: Grid, valid: List[List[bool]]
+) -> Optional[tuple]:
+    """``(min, max)`` over the valid samples, or ``None`` if there are none."""
+
+    low = high = None
+    for y, row in enumerate(values):
+        ok = valid[y]
+        for x, value in enumerate(row):
+            if not ok[x]:
+                continue
+            if low is None:
+                low = high = value
+            elif value < low:
+                low = value
+            elif value > high:
+                high = value
+    if low is None:
+        return None
+    return low, high
+
+
+def _collapsed(
+    values: Grid, out: List[List[int]], valid: List[List[bool]], levels: int
+) -> bool:
+    """True when the canvas came out all-or-nothing for non-uniform content.
+
+    Only the *extreme* levels count.  A constant canvas that sits at an
+    intermediate level is a faithful statement -- "this image is flat at
+    mid-grey" -- and must be left alone: a checkerboard whose cells average
+    0.498 to 0.502 has no structure to recover, and stretching it across the
+    ramp would turn 1% of numerical variation into a black-and-white pattern.
+    An all-blank or all-saturated canvas, by contrast, carries no information
+    at all, and that is what has to be rescued.  Uniform input is never
+    rescued: a flat colour rendering flat is the right answer.
+    """
+
+    span = _valid_range(values, valid)
+    if span is None or span[1] - span[0] <= 1e-9:
+        return False
+    first = None
+    for y, row in enumerate(out):
+        ok = valid[y]
+        for x, index in enumerate(row):
+            if not ok[x]:
+                continue
+            if first is None:
+                first = index
+            elif index != first:
+                return False
+    if first is None:
+        return False
+    return first == 0 or first == levels - 1
+
+
+def _spread_to_targets(
+    values: Grid, targets: Sequence[float], valid: List[List[bool]]
+) -> Grid:
+    """Re-map the valid range onto the quantiser's own range.
+
+    Only ever called when the direct quantisation collapsed, so ordinary images
+    keep their absolute tone mapping and are byte-for-byte unaffected.
+    """
+
+    low, high = _valid_range(values, valid)  # type: ignore[misc]
+    span = high - low
+    if span <= 1e-9:  # pragma: no cover - guarded by _collapsed
+        return values
+    target_low = targets[0]
+    target_span = targets[-1] - targets[0]
+    scale = target_span / span if span else 1.0
+    return [
+        [
+            target_low + (value - low) * scale if valid[y][x] else value
+            for x, value in enumerate(row)
+        ]
+        for y, row in enumerate(values)
+    ]
+
+
 def quantize(
+    values: Grid,
+    targets: Sequence[float],
+    mode: str = "none",
+    seed: Optional[int] = None,
+    valid: Optional[List[List[bool]]] = None,
+    *,
+    recover_degenerate: bool = True,
+) -> List[List[int]]:
+    """Quantise a coverage grid onto ``targets``.
+
+    ``values[y][x]`` is the desired coverage in ``[0, 1]``.  ``valid`` marks
+    samples that may receive ink; invalid samples are rendered as the lowest
+    target and never absorb or emit diffusion error (this is how transparent
+    pixels avoid smearing dithered noise into their surroundings).
+
+    A fixed absolute threshold is not a valid quantiser for an arbitrary image:
+    content whose whole tonal band sits on one side of it collapses to an
+    all-or-nothing canvas, which for a 1-bit mode means an empty one.  So when
+    -- and only when -- the direct quantisation would return a constant extreme
+    level for non-uniform content, the valid range is re-mapped across the
+    quantiser's own range and the grid is quantised again.  Anything that
+    quantises to more than one level is untouched, which keeps every measured
+    baseline byte-identical.
+    """
+
+    out = _quantize_once(values, targets, mode, seed, valid)
+    if recover_degenerate:
+        mask = valid if valid is not None else _all_valid(values)
+        if _collapsed(values, out, mask, len(targets)):
+            spread = _spread_to_targets(values, targets, mask)
+            out = _quantize_once(spread, targets, mode, seed, valid)
+    return out
+
+
+def _all_valid(values: Grid) -> List[List[bool]]:
+    return [[True] * len(row) for row in values]
+
+
+def _quantize_once(
     values: Grid,
     targets: Sequence[float],
     mode: str = "none",
@@ -108,7 +227,6 @@ def quantize(
 
     if len(targets) == 1:
         return out
-
     if mode == "ordered":
         step = _mean_step(targets)
         for y in range(height):

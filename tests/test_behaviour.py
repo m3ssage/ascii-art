@@ -373,6 +373,67 @@ def test_removing_a_flag_restores_the_default(run, paths):
     assert run([image, "--width", "60", "--dither", "none", "--seed", "0"]).stdout == default
 
 
+def _dotted_cells(payload: bytes) -> int:
+    """Count braille cells that actually have a dot lit."""
+
+    text = _strip_escapes(payload).decode("utf-8", "replace")
+    return sum(1 for ch in text if 0x2800 < ord(ch) <= 0x28FF)
+
+
+def test_braille_renders_on_every_background(run, paths):
+    """Regression: `--mode braille` drew no dotted cell at all.
+
+    The reported file is a flat brand colour whose ink sits below braille's
+    fixed 0.5 threshold, so on the default dark background every dot quantised
+    to zero and the image rendered as nothing.
+    """
+
+    for fixture in ("logo_dark", "logo_light"):
+        for background in (None, "dark", "light"):
+            args = [str(paths[fixture]), "--width", "80", "--mode", "braille"]
+            if background:
+                args += ["--background", background]
+            result = run(args)
+            assert result.returncode == 0, result.err
+            assert _dotted_cells(result.stdout) > 0, (
+                f"{fixture}: no dotted cells with --background {background or 'omitted'}"
+            )
+
+
+def test_braille_neighbours_agree_with_the_default(run, paths):
+    image = str(paths["logo_dark"])
+    omitted = run([image, "--width", "80", "--mode", "braille"])
+    assert run([image, "--width", "80", "--mode", "braille", "--background", "dark"]).stdout == omitted.stdout
+    assert run([image, "--width", "80", "--mode", "braille", "--background", "auto"]).stdout == omitted.stdout
+    assert run([image, "--width", "80", "--mode", "braille", "--background", "light"]).stdout != omitted.stdout
+
+
+def test_every_mode_draws_something_for_a_low_contrast_logo(run, paths):
+    """No render mode may return an empty canvas for content that exists."""
+
+    for fixture in ("logo_dark", "logo_light"):
+        for mode in ("ramp", "braille", "block", "edges"):
+            for background in ("dark", "light"):
+                result = run(
+                    [
+                        str(paths[fixture]), "--width", "80", "--mode", mode,
+                        "--background", background,
+                    ]
+                )
+                assert result.returncode == 0, result.err
+                body = _strip_escapes(result.stdout).decode("utf-8", "replace")
+                visible = body.replace(" ", "").replace("\u2800", "").strip()
+                assert visible, f"{fixture} --mode {mode} --background {background} drew nothing"
+
+
+def test_half_mode_draws_something_for_a_low_contrast_logo(run, paths):
+    for fixture in ("logo_dark", "logo_light"):
+        result = run([str(paths[fixture]), "--width", "80", "--mode", "half", "--color", "256"])
+        assert result.returncode == 0, result.err
+        body = _strip_escapes(result.stdout).decode("utf-8", "replace")
+        assert body.replace(" ", "").strip()
+
+
 # ------------------------------------------------------------------ interface
 
 
