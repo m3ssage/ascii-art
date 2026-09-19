@@ -1,0 +1,192 @@
+{
+  "cases": {
+    "gradient_ramp": {
+      "cols": 256,
+      "distinct_glyphs": 61,
+      "fixture": "ramp",
+      "out_mean": 38.6,
+      "ref_mean": 127.5,
+      "rmse": 102.77,
+      "rmse_fit": 5.15,
+      "rmse_struct": 0.0697,
+      "rows": 16
+    },
+    "photo_block": {
+      "cols": 80,
+      "distinct_glyphs": 15,
+      "fixture": "photo",
+      "out_mean": 139.8,
+      "ref_mean": 132.5,
+      "rmse": 27.87,
+      "rmse_fit": 19.64,
+      "rmse_struct": 0.4698,
+      "rows": 40
+    },
+    "photo_braille": {
+      "cols": 80,
+      "distinct_glyphs": 130,
+      "fixture": "photo",
+      "out_mean": 59.6,
+      "ref_mean": 132.5,
+      "rmse": 78.39,
+      "rmse_fit": 25.67,
+      "rmse_struct": 0.6288,
+      "rows": 40
+    },
+    "photo_braille_diffusion": {
+      "cols": 80,
+      "distinct_glyphs": 163,
+      "fixture": "photo",
+      "out_mean": 53.3,
+      "ref_mean": 132.5,
+      "rmse": 83.18,
+      "rmse_fit": 6.3,
+      "rmse_struct": 0.1469,
+      "rows": 40
+    },
+    "photo_edges": {
+      "cols": 80,
+      "distinct_glyphs": 4,
+      "fixture": "photo",
+      "out_mean": 5.3,
+      "ref_mean": 132.5,
+      "rmse": 134.71,
+      "rmse_fit": 42.97,
+      "rmse_struct": 1.4432,
+      "rows": 40
+    },
+    "photo_ramp": {
+      "cols": 80,
+      "distinct_glyphs": 63,
+      "fixture": "photo",
+      "out_mean": 39.6,
+      "ref_mean": 132.5,
+      "rmse": 97.62,
+      "rmse_fit": 8.16,
+      "rmse_struct": 0.1906,
+      "rows": 40
+    },
+    "photo_ramp_diffusion": {
+      "cols": 80,
+      "distinct_glyphs": 66,
+      "fixture": "photo",
+      "out_mean": 39.8,
+      "ref_mean": 132.5,
+      "rmse": 97.38,
+      "rmse_fit": 8.26,
+      "rmse_struct": 0.1929,
+      "rows": 40
+    },
+    "photo_ramp_ordered": {
+      "cols": 80,
+      "distinct_glyphs": 65,
+      "fixture": "photo",
+      "out_mean": 39.7,
+      "ref_mean": 132.5,
+      "rmse": 97.61,
+      "rmse_fit": 8.32,
+      "rmse_struct": 0.1943,
+      "rows": 40
+    },
+    "shapes_block": {
+      "cols": 80,
+      "distinct_glyphs": 11,
+      "fixture": "shapes",
+      "out_mean": 84.8,
+      "ref_mean": 82.9,
+      "rmse": 9.51,
+      "rmse_fit": 9.1,
+      "rmse_struct": 0.0956,
+      "rows": 40
+    },
+    "shapes_ramp": {
+      "cols": 80,
+      "distinct_glyphs": 38,
+      "fixture": "shapes",
+      "out_mean": 25.0,
+      "ref_mean": 82.9,
+      "rmse": 88.25,
+      "rmse_fit": 4.78,
+      "rmse_struct": 0.0502,
+      "rows": 40
+    },
+    "text_block": {
+      "cols": 80,
+      "distinct_glyphs": 7,
+      "fixture": "text",
+      "out_mean": 248.4,
+      "ref_mean": 243.5,
+      "rmse": 8.66,
+      "rmse_fit": 7.05,
+      "rmse_struct": 0.3947,
+      "rows": 13
+    },
+    "text_braille_diffusion": {
+      "cols": 80,
+      "distinct_glyphs": 49,
+      "fixture": "text",
+      "out_mean": 98.0,
+      "ref_mean": 243.5,
+      "rmse": 145.93,
+      "rmse_fit": 8.18,
+      "rmse_struct": 0.4609,
+      "rows": 13
+    },
+    "text_ramp": {
+      "cols": 80,
+      "distinct_glyphs": 21,
+      "fixture": "text",
+      "out_mean": 75.0,
+      "ref_mean": 243.5,
+      "rmse": 169.0,
+      "rmse_fit": 6.67,
+      "rmse_struct": 0.3727,
+      "rows": 13
+    }
+  },
+  "generated_by": "qual/make_baselines.py",
+  "metric": "src/ascii_art/quality.py (Pillow, Lanczos downscale)",
+  "report_baselines": {
+    "_comment": "Measured on the report's own test images with the report's own metric. See qual/RESULTS.md for the head-to-head against this implementation.",
+    "circle400.png": {
+      "best_tool": "ascii-image-converter -W 80 -b",
+      "rmse": 73.09,
+      "rmse_fit": 4.66,
+      "rmse_struct": 0.0383
+    },
+    "dither_bar": {
+      "note": "section 6.3.4: --dither must improve RMSE_struct on the photo",
+      "rmse_struct_improvement_percent": 25.0
+    },
+    "geometry_bar": {
+      "aspect_tolerance": 0.05,
+      "note": "section 6.3.2: circle400 apparent pixel aspect within +/-0.05 of 1.00"
+    },
+    "photo.png": {
+      "best_tool": "ascii-image-converter -W 80 -g",
+      "rmse": 56.39,
+      "rmse_fit": 16.04,
+      "rmse_struct": 0.2329
+    },
+    "shapes.png": {
+      "best_tool": "ascii-image-converter -W 80 -g",
+      "rmse": 9.05,
+      "rmse_fit": 5.61,
+      "rmse_struct": 0.0463
+    },
+    "text.png": {
+      "best_tool": "ascii-image-converter -W 80 -b --dither",
+      "rmse": 16.34,
+      "rmse_fit": 2.74,
+      "rmse_struct": 0.182
+    },
+    "text.png_ramp_mode_bar": {
+      "note": "section 6.3.3: any ramp-mode implementation that cannot reach ~6 has not beaten the incumbents (best non-dither result was 5.86)",
+      "rmse_fit": 6.0
+    },
+    "tone_bar": {
+      "distinct_glyphs": 16,
+      "note": "section 6.3.4: the 256-step ramp must yield >= 16 distinct glyphs"
+    }
+  }
+}

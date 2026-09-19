@@ -1,0 +1,167 @@
+# ascii-art
+
+Script-safe image to ASCII/Unicode art, in Python with Pillow as its only
+runtime dependency.
+
+Built against the design in the project's scout report (§6.1 core behaviour,
+§6.2 scope fence, §6.3 test contract). It exists because the incumbents each
+fail on a different axis: `chafa` chooses a pixel-graphics protocol from
+environment variables and writes megabytes of escapes into a redirect,
+`ascii-image-converter` exits 0 on a missing file and puts the error on stdout,
+and no tool in the field publishes how its character ramp was ordered.
+
+What this one does differently:
+
+* **Transparent pixels are no ink.** A transparent-background PNG renders as
+  art, not as a solid coloured box. Only `chafa` does this today.
+* **Plain text whenever stdout is not a TTY**, always. No kitty/sixel/iTerm
+  protocol is emitted under any circumstances. Errors go to stderr with exit
+  code 2; usage errors exit 1.
+* **A measured ramp.** The default glyph order comes from rasterising each
+  glyph and measuring its actual ink coverage, not from a hard-coded string, and
+  the same measurements set the quantisation thresholds. On the report's photo
+  probe that is worth 2.4x in structural error and 2.4x in best-fit error over
+  the same glyph set in its given order (`RMSE_struct` 0.140 vs 0.338,
+  `RMSE_fit` 9.7 vs 23.1).
+* **Dithering as a first-class mode.** The single biggest quality lever in
+  monochrome: 76% better structure on a photograph, and 3x better raw error on
+  text than the best incumbent.
+* **Six pre-processing filters** in the CLI, which among the incumbents only
+  `img2txt` partly has.
+
+## Install
+
+Python 3.10+ and Pillow. A project-local virtual environment is enough; nothing
+is installed system-wide.
+
+```console
+$ python3 -m venv .venv
+$ .venv/bin/pip install -e .
+$ .venv/bin/ascii-art --help
+```
+
+Or without installing, from a checkout:
+
+```console
+$ .venv/bin/python -m ascii_art --help
+```
+
+## Use
+
+```console
+$ ascii-art logo.png                          # 80 columns, plain text on a pipe
+$ ascii-art --width 100 photo.jpg              # 100 cells wide, aspect preserved
+$ ascii-art --mode braille --dither diffusion screenshot.png
+$ ascii-art --background light --chars "@%#*+=-:. " notes.png
+$ ascii-art --mode block --color 256 --fg-only shot.png | less -R
+$ cat icon.png | ascii-art --size 40x20 --format ansi --color truecolor
+$ ascii-art --format html --output art.html photo.jpg
+$ ascii-art --formats                         # what this build can decode
+```
+
+Library use is the same pipeline:
+
+```python
+from ascii_art import RenderOptions, load_image, render, to_text
+
+canvas = render(load_image("logo.png"), RenderOptions(width=80, dither="ordered"))
+print(to_text(canvas))
+```
+
+## The option surface
+
+| group | options |
+|---|---|
+| input | local paths, `-` or no argument for stdin, multiple files, `--formats` |
+| mode | `--mode ramp\|braille\|block\|half\|edges`, `--chars`, `--ramp measured\|as-given`, `--edge-threshold` |
+| tone | `--color none\|2\|8\|16\|256\|truecolor\|auto`, `--dither none\|ordered\|diffusion\|noise`, `--seed`, `--background dark\|light\|auto`, `--invert`, `--fg-only` |
+| alpha | `--alpha transparent\|composite`, `--alpha-bg`, `--alpha-threshold` |
+| geometry | `--width`, `--height`, `--size WxH`, `--scale N\|max`, `--fit`, `--stretch`, `--font-ratio W/H` |
+| filters | `--brightness`, `--contrast`, `--gamma`, `--rotate`, `--flip-x`, `--flip-y` |
+| output | `--output FILE`, `--format text\|ansi\|html`, `--polite` |
+
+`--help` documents each one, including the mode table and the exit codes.
+
+### Modes
+
+| mode | what it is | when to use it |
+|---|---|---|
+| `ramp` (default) | ordered luminance ramp, 70 glyphs by default | photographs, general use |
+| `braille` | `U+2800..U+28FF`, a 2x4 dot matrix per cell | detail; square sample points |
+| `block` | `▀▄█` plus quadrants, five tone levels per cell | best monochrome tone; diagrams |
+| `half` | `▀` carrying two colour samples per cell | colour only; refused with `--color none`, because monochrome half blocks are measurably broken |
+| `edges` | Sobel edges drawn as `- \| / \` | line art, not photographs — hence off by default |
+
+### Behaviour worth knowing
+
+* `--color auto` resolves to `none` unless stdout is a terminal, and only ever
+  upgrades on a TTY. `--output FILE` counts as a pipe. `--format html` assumes
+  truecolour, because a colourless HTML file is useless.
+* `NO_COLOR` disables colour unless you pass `--color` explicitly.
+* Downsampling is always an area average (a box filter over each cell's source
+  rectangle). This is the single highest-leverage correctness fix over the
+  incumbents, and it is why a fine checkerboard renders as flat grey instead of
+  as a moiré pattern.
+* `--font-ratio` (default `1/2`) is the aspect correction. It is a parameter
+  because a terminal cell is about twice as tall as it is wide, and hard-coding
+  that is what makes circles round in some tools and squashed in others.
+* Output is deterministic. `--dither noise` is only random with `--seed`, and
+  even then it is reproducible from the seed.
+
+## Development
+
+```console
+$ .venv/bin/pip install -e . pytest
+$ .venv/bin/python -m pytest                  # behaviour, render and quality suites
+$ .venv/bin/python -m pytest -m quality       # just the section 6.3 regression suite
+```
+
+The quality suite scores rendered output with the metric from the report's
+section 7.1 (`ascii_art.quality`): rasterise the glyph grid, box-downscale it
+back to the cell grid, and compare against the source. It reports `RMSE`,
+`RMSE_struct` (mean and contrast removed, isolating structure) and `RMSE_fit`
+(after a best-fit brightness/contrast match, the fairest single number).
+
+`tests/baselines.json` holds this implementation's own measurements of its own
+deterministic fixtures; regenerate with:
+
+```console
+$ .venv/bin/python qual/make_baselines.py
+```
+
+To compare against the real incumbents, see `qual/`:
+
+```console
+$ .venv/bin/python qual/make_fixtures.py
+$ ASCII_ART_INCUMBENT_PATH=/path/to/bin .venv/bin/python qual/metric.py --incumbents qual/images/photo.png
+$ .venv/bin/python qual/figures.py --fixture photo     # then actually look at it
+```
+
+`qual/RESULTS.md` records the measured head-to-head, including the two probes
+where an incumbent still wins.
+
+### Layout
+
+```
+src/ascii_art/
+  cli.py        argument parsing, pipe rules, exit codes (thin shell)
+  render.py     the pipeline: alpha, geometry, modes, colour
+  ramp.py       measured glyph ordering and thresholds
+  dither.py     one quantiser, four dither modes, used by every mode
+  palette.py    ANSI/xterm palettes, colour quantisation, depth resolution
+  filters.py    the six pre-processing filters
+  geometry.py   sizing and the aspect correction
+  loader.py     paths, stdin, EXIF orientation, format reporting
+  output.py     text, ANSI, HTML
+  quality.py    the section 7.1 metric
+  fonts.py      monospace font discovery and ink-coverage measurement
+tests/          behaviour, render and quality suites plus fixtures
+qual/           metric runner, report-methodology cross-check, figures, results
+```
+
+## Not in this version
+
+Deliberately, per the confirmed scope fence. No animation, video or webcam (GIF
+contributes its first frame); no kitty/sixel/iTerm passthrough; no interactive
+TUI; no structural glyph matching or custom font rasterisation; no neural
+generation; no ASCII-to-image; no packaging beyond a working local build.

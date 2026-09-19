@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ascii-art"
+version = "1.0.0"
+description = "Script-safe image-to-ASCII renderer: measured ramps, honest alpha, first-class dithering."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = ["Pillow>=9.1"]
+
+[project.scripts]
+ascii-art = "ascii_art.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+  "behaviour: CLI contract (exit codes, streams, pipe rules)",
+  "render: library-level rendering behaviour",
+  "quality: the section 6.3 quality regression suite",
+  "parity: head-to-head comparison against incumbent converters",
+]
