@@ -645,7 +645,7 @@ Uploads are processed in memory on the server — nothing is written to disk or 
     <div class="grid">
       <label><span>brightness</span><input type="number" name="brightness" value="1.0" step="0.1" min="0" max="10"></label>
       <label><span>contrast</span><input type="number" name="contrast" value="1.0" step="0.1" min="0" max="10"></label>
-      <label><span>gamma</span><input type="number" name="gamma" value="1.0" step="0.1" min="0.01" max="10"></label>
+      <label><span>gamma</span><input type="number" name="gamma" value="1.0" step="0.01" min="0.01" max="10"></label>
       <label><span>rotate</span><select name="rotate">
         <option value="0" selected>0</option>
         <option value="90">90</option>

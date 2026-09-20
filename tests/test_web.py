@@ -14,6 +14,8 @@ import io
 import json
 import socket
 import threading
+from decimal import Decimal, InvalidOperation
+from html.parser import HTMLParser
 from typing import Dict, Optional, Tuple
 
 import pytest
@@ -100,6 +102,70 @@ def test_index_serves_the_browser_interface(server) -> None:
     assert "ascii-art" in html
     assert 'name="mode"' in html
     assert 'name="color"' in html
+
+
+class _NumberInputs(HTMLParser):
+    """Collect ``<input type="number">`` defaults from the served page."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.inputs: list = []
+
+    def handle_starttag(self, tag, attrs) -> None:
+        attributes = dict(attrs)
+        if tag == "input" and attributes.get("type") == "number":
+            self.inputs.append(attributes)
+
+
+def _invalid_number_input(attrs: Dict[str, str]) -> Optional[str]:
+    """Return why a browser rejects this control's default, if it does.
+
+    This is the HTML5 constraint-validation rule for ``input[type=number]``:
+    the default value must lie within ``min``/``max`` and sit on the ``step``
+    grid.  The grid is anchored at ``min`` when one is given, which is exactly
+    how the old ``gamma`` default escaped the ``0.1`` grid rooted at ``0.01``.
+    """
+
+    value = attrs.get("value")
+    if value is None:
+        return None
+    name = attrs.get("name", "?")
+    minimum = attrs.get("min")
+    maximum = attrs.get("max")
+    step = attrs.get("step")
+    try:
+        number = Decimal(value)
+    except InvalidOperation:
+        return f"{name}={value!r} is not a number"
+    if minimum is not None and number < Decimal(minimum):
+        return f"{name}={value!r} is below min={minimum}"
+    if maximum is not None and number > Decimal(maximum):
+        return f"{name}={value!r} is above max={maximum}"
+    if step not in (None, "any"):
+        base = Decimal(minimum) if minimum is not None else Decimal(0)
+        steps = (number - base) / Decimal(step)
+        if steps != steps.to_integral_value():
+            return f"{name}={value!r} is off the step={step} grid based at {base}"
+    return None
+
+
+def test_default_form_fields_are_submittable(server) -> None:
+    """The served form's defaults must pass browser constraint validation.
+
+    A browser refuses to submit a form containing an invalid control, so every
+    default in the served HTML has to satisfy its own ``min``/``max``/``step``.
+    """
+
+    status, _, body = _request(server.server_port, "GET", "/")
+    assert status == 200
+    parser = _NumberInputs()
+    parser.feed(body.decode("utf-8"))
+    problems = [
+        problem
+        for problem in map(_invalid_number_input, parser.inputs)
+        if problem is not None
+    ]
+    assert not problems, "default form controls are invalid: " + "; ".join(problems)
 
 
 def test_healthz(server) -> None:
