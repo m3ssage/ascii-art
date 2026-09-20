@@ -214,11 +214,66 @@ src/ascii_art/
   geometry.py   sizing and the aspect correction
   loader.py     paths, stdin, EXIF orientation, format reporting
   output.py     text, ANSI, HTML
+  web.py        browser front end (HTTP) over the renderer
   quality.py    the section 7.1 metric
   fonts.py      monospace font discovery and ink-coverage measurement
-tests/          behaviour, render and quality suites plus fixtures
+tests/          behaviour, render, web and quality suites plus fixtures
 qual/           metric runner, report-methodology cross-check, figures, results
 ```
+
+## Run the web app (Docker)
+
+`ascii_art.web` puts a browser interface on the renderer: upload an image,
+set the same parameters the CLI takes (same names and defaults), render, then
+copy or download the result.  Uploads are decoded and rendered in memory —
+nothing is written to disk or sent anywhere — and the request body is
+size-capped.
+
+Build and start:
+
+```console
+$ docker compose up --build -d
+```
+
+Open http://localhost:8080.  The service listens on port **8080** inside the
+container, mapped to host port 8080 by `docker-compose.yml`.
+
+Stop it:
+
+```console
+$ docker compose down
+```
+
+Without compose:
+
+```console
+$ docker build -t ascii-art-web .
+$ docker run --rm -p 8080:8080 ascii-art-web
+```
+
+Configuration is via environment variables (all optional):
+
+| variable | default | meaning |
+|---|---|---|
+| `ASCII_ART_HOST` | `0.0.0.0` | address to bind |
+| `ASCII_ART_PORT` | `8080` | port to listen on |
+| `ASCII_ART_MAX_BODY_BYTES` | `20971520` (20 MiB) | upload cap; over-size bodies get `413` |
+| `ASCII_ART_MAX_PIXELS` | `40000000` | decoded pixel cap; larger images get `413` |
+
+There are **no volumes** — the service is stateless and keeps uploads in
+memory, so it sits alongside other services on a host as a single
+port-mapped container.  Put it behind a reverse proxy, or map a different host
+port (`"127.0.0.1:8081:8080"`) to avoid a clash; nothing is shared between
+replicas.  `GET /healthz` returns `ok` for health checks.
+
+The image runs as an unprivileged user (`ascii`, uid 10001), builds from
+`python:3.12-slim`, and keeps all build tooling in a throwaway build stage.
+
+- Startup command (measured): `python -m ascii_art.web`, which prints
+  `ascii-art-web: listening on http://0.0.0.0:8080 (max upload 20971520 bytes, max 40000000 pixels)`.
+- Image size: **not yet measured** — the Dockerfile/compose file have not been
+  built in this working environment (no Docker daemon), so the container is
+  currently untested.  After the first build, record `docker images ascii-art-web` here.
 
 ## Not in this version
 

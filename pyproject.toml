@@ -13,6 +13,7 @@ dependencies = ["Pillow>=9.1"]
 
 [project.scripts]
 ascii-art = "ascii_art.cli:main"
+ascii-art-web = "ascii_art.web:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

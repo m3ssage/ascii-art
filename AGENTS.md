@@ -30,6 +30,13 @@ This file is the project's committed home for project-intrinsic agent knowledge:
   `measure_canvas` (exact grid, for our own regression numbers). Trimming a
   dark-background render rescales the reference image and silently wrecks the
   score, which is why both exist.
+- `src/ascii_art/web.py` is a browser front end over the renderer, not a second
+  renderer: it parses a multipart form into `RenderOptions` (fields are named
+  after the CLI flags), decodes via the library's own `load_image` stdin path,
+  and returns `format_canvas` output. It is stdlib-only (`http.server`), never
+  writes uploads to disk, and caps body size (`ASCII_ART_MAX_BODY_BYTES`) and
+  decoded pixels (`ASCII_ART_MAX_PIXELS`). `Dockerfile`/`docker-compose.yml`
+  package it; see the README's "Run the web app (Docker)" section.
 
 ## Sharp edges
 
