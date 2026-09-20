@@ -34,9 +34,11 @@ This file is the project's committed home for project-intrinsic agent knowledge:
   renderer: it parses a multipart form into `RenderOptions` (fields are named
   after the CLI flags), decodes via the library's own `load_image` stdin path,
   and returns `format_canvas` output. It is stdlib-only (`http.server`), never
-  writes uploads to disk, and caps body size (`ASCII_ART_MAX_BODY_BYTES`) and
-  decoded pixels (`ASCII_ART_MAX_PIXELS`). `Dockerfile`/`docker-compose.yml`
-  package it; see the README's "Run the web app (Docker)" section.
+  writes uploads to disk, and caps body size (`ASCII_ART_MAX_BODY_BYTES`),
+  decoded pixels (`ASCII_ART_MAX_PIXELS`) and the output grid
+  (`ASCII_ART_MAX_CELLS`, enforced on the resolved geometry before rendering).
+  `Dockerfile`/`docker-compose.yml` package it; see the README's
+  "Run the web app (Docker)" section.
 
 ## Sharp edges
 

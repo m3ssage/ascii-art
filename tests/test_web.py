@@ -234,6 +234,41 @@ def test_over_size_body_is_refused_with_413() -> None:
         thread.join(timeout=10)
 
 
+def test_output_grid_cap_is_refused_with_413() -> None:
+    srv = make_server("127.0.0.1", 0, max_pixels=10_000_000, max_cells=1000)
+    thread = threading.Thread(target=srv.serve_forever, daemon=True)
+    thread.start()
+    try:
+        body, content_type = multipart_body(
+            {"width": "100", "height": "100", "stretch": "on"}, image=_png_bytes()
+        )
+        status, _, raw = _request(
+            srv.server_port,
+            "POST",
+            "/render",
+            body=body,
+            headers={"Content-Type": content_type},
+        )
+        assert status == 413
+        data = json.loads(raw)
+        assert data["ok"] is False
+        assert "ASCII_ART_MAX_CELLS" in data["error"]
+        assert "1000" in data["error"]
+    finally:
+        srv.shutdown()
+        srv.server_close()
+        thread.join(timeout=10)
+
+
+def test_auto_colour_depth_follows_the_output_format() -> None:
+    from ascii_art.web import build_options
+
+    _, _, depth_ansi, _, _ = build_options({"format": "ansi", "color": "auto"})
+    _, _, depth_text, _, _ = build_options({"format": "text", "color": "auto"})
+    assert depth_ansi == "truecolor"
+    assert depth_text == "none"
+
+
 def test_get_render_is_method_not_allowed(server) -> None:
     status, headers, raw = _request(server.server_port, "GET", "/render")
     assert status == 405

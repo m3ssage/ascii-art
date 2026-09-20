@@ -259,6 +259,7 @@ Configuration is via environment variables (all optional):
 | `ASCII_ART_PORT` | `8080` | port to listen on |
 | `ASCII_ART_MAX_BODY_BYTES` | `20971520` (20 MiB) | upload cap; over-size bodies get `413` |
 | `ASCII_ART_MAX_PIXELS` | `40000000` | decoded pixel cap; larger images get `413` |
+| `ASCII_ART_MAX_CELLS` | `4000000` | output-grid cap (`cols x rows`); larger grids get `413` |
 
 There are **no volumes** — the service is stateless and keeps uploads in
 memory, so it sits alongside other services on a host as a single
@@ -271,7 +272,7 @@ The image runs as an unprivileged user (`ascii`, uid 10001), builds from
 
 - Startup command (the container's `CMD`, verified by running the service
   locally): `python -m ascii_art.web`, which prints
-  `ascii-art-web: listening on http://0.0.0.0:8080 (max upload 20971520 bytes, max 40000000 pixels)`.
+  `ascii-art-web: listening on http://0.0.0.0:8080 (max upload 20971520 bytes, max 40000000 pixels, max 4000000 cells)`.
 - Image size: **not stated** — the container image has **not been built or run
   on this host** (no Docker daemon is available here), so there is no measured
   size and no container build/run transcript to report.  `docker compose config`

@@ -27,10 +27,11 @@ from urllib.parse import urlparse
 from PIL import Image
 
 from .errors import AsciiArtError, UsageError
-from .filters import FilterSpec, validate as validate_filters
-from .geometry import parse_font_ratio
+from .filters import FilterSpec, apply_filters, validate as validate_filters
+from .geometry import compute_geometry, parse_font_ratio
 from .loader import load_image
 from .output import FORMATS, format_canvas, to_text
+from .palette import auto_depth_for_format, parse_colour
 from .render import (
     ALPHA_MODES,
     BACKGROUNDS,
@@ -44,6 +45,7 @@ DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8080
 DEFAULT_MAX_BODY_BYTES = 20 * 1024 * 1024  # 20 MiB, the upload cap
 DEFAULT_MAX_PIXELS = 40_000_000  # 40 megapixels after decode
+DEFAULT_MAX_CELLS = 4_000_000  # cells in the output grid
 
 _PROG = "ascii-art-web"
 
@@ -103,30 +105,6 @@ def _bool(fields: Dict[str, str], name: str) -> bool:
     return fields[name].strip().lower() in ("on", "true", "1", "yes", "")
 
 
-def _hex_colour(text: str) -> Tuple[int, int, int]:
-    """Parse ``#RRGGBB`` (or ``black``/``white``, or 3-digit hex) like the CLI."""
-
-    raw = text.strip().lstrip("#").lower()
-    named = {"black": "000000", "white": "ffffff"}
-    raw = named.get(raw, raw)
-    if len(raw) == 3:
-        raw = "".join(ch * 2 for ch in raw)
-    if len(raw) != 6:
-        raise UsageError(f"invalid colour {text!r} (expected #RRGGBB)")
-    try:
-        return (int(raw[0:2], 16), int(raw[2:4], 16), int(raw[4:6], 16))
-    except ValueError:
-        raise UsageError(f"invalid colour {text!r} (expected #RRGGBB)") from None
-
-
-def _resolve_depth(color: str, fmt: str) -> str:
-    """Resolve ``auto`` exactly as the CLI does when stdout is not a TTY."""
-
-    if color == "auto":
-        return "truecolor" if fmt in ("html", "ansi") else "none"
-    return color
-
-
 def _check_text_can_carry_colour(color: str, fmt: str) -> None:
     if fmt == "text" and color not in ("none", "auto"):
         raise UsageError(
@@ -155,7 +133,7 @@ def build_options(
     fg_only = _bool(fields, "fg_only")
     alpha = _choice(fields, "alpha", ALPHA_MODES, "transparent")
     alpha_bg_text = _text(fields, "alpha_bg").strip()
-    alpha_bg = _hex_colour(alpha_bg_text) if alpha_bg_text else None
+    alpha_bg = parse_colour(alpha_bg_text) if alpha_bg_text else None
     alpha_threshold = _int(fields, "alpha_threshold", 128)
     width = _int(fields, "width", None)
     height = _int(fields, "height", None)
@@ -173,7 +151,7 @@ def build_options(
     fmt = _choice(fields, "format", FORMATS, "text")
     polite = _bool(fields, "polite")
 
-    depth = _resolve_depth(color, fmt)
+    depth = auto_depth_for_format(fmt) if color == "auto" else color
 
     filters = FilterSpec(
         brightness=brightness,
@@ -219,6 +197,34 @@ def build_options(
     return options, fmt, depth, fg_only, polite
 
 
+def _check_cell_budget(
+    image: Image.Image, options: RenderOptions, max_cells: int
+) -> None:
+    """Refuse an output grid larger than ``max_cells`` before allocating it."""
+
+    filtered = apply_filters(image, options.filters)
+    geometry = compute_geometry(
+        filtered.width,
+        filtered.height,
+        width=options.width,
+        height=options.height,
+        size=options.size,
+        scale=options.scale,
+        fit=options.fit,
+        stretch=options.stretch,
+        font_ratio=options.font_ratio,
+        term=options.term,
+        is_tty=options.is_tty,
+    )
+    cells = geometry.cols * geometry.rows
+    if cells > max_cells:
+        raise _HttpError(
+            HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+            f"output grid of {cells} cells exceeds the cap of {max_cells} cells "
+            f"(ASCII_ART_MAX_CELLS); reduce width, height, size or scale",
+        )
+
+
 def _decode_upload(payload: bytes, max_pixels: int) -> Image.Image:
     """Decode uploaded bytes with the library's own stdin path."""
 
@@ -253,12 +259,13 @@ def _output_meta(fmt: str) -> Tuple[str, str]:
 
 
 def render_payload(
-    payload: bytes, fields: Dict[str, str], *, max_pixels: int
+    payload: bytes, fields: Dict[str, str], *, max_pixels: int, max_cells: int
 ) -> Dict[str, str]:
     """Render uploaded bytes and return the JSON-serialisable result."""
 
     image = _decode_upload(payload, max_pixels)
     options, fmt, depth, fg_only, polite = build_options(fields)
+    _check_cell_budget(image, options, max_cells)
     canvas = render(image, options, color_depth=depth)
     output = format_canvas(canvas, fmt, depth, fg_only=fg_only, polite=polite)
     preview = to_text(canvas)
@@ -373,7 +380,12 @@ class WebHandler(BaseHTTPRequestHandler):
                 HTTPStatus.BAD_REQUEST,
                 "no image uploaded: expected a file field named 'image'",
             )
-        result = render_payload(payload, fields, max_pixels=self.server.max_pixels)
+        result = render_payload(
+            payload,
+            fields,
+            max_pixels=self.server.max_pixels,
+            max_cells=self.server.max_cells,
+        )
         self._send_json(HTTPStatus.OK, {"ok": True, **result})
 
     def _read_body(self) -> bytes:
@@ -437,9 +449,11 @@ class WebServer(ThreadingHTTPServer):
         *,
         max_body_bytes: int = DEFAULT_MAX_BODY_BYTES,
         max_pixels: int = DEFAULT_MAX_PIXELS,
+        max_cells: int = DEFAULT_MAX_CELLS,
     ) -> None:
         self.max_body_bytes = max_body_bytes
         self.max_pixels = max_pixels
+        self.max_cells = max_cells
         super().__init__(server_address, RequestHandlerClass)
 
 
@@ -449,12 +463,14 @@ def make_server(
     *,
     max_body_bytes: int = DEFAULT_MAX_BODY_BYTES,
     max_pixels: int = DEFAULT_MAX_PIXELS,
+    max_cells: int = DEFAULT_MAX_CELLS,
 ) -> WebServer:
     return WebServer(
         (host, port),
         WebHandler,
         max_body_bytes=max_body_bytes,
         max_pixels=max_pixels,
+        max_cells=max_cells,
     )
 
 
@@ -474,6 +490,7 @@ def main() -> None:
     port = _env_int("ASCII_ART_PORT", DEFAULT_PORT)
     max_body_bytes = _env_int("ASCII_ART_MAX_BODY_BYTES", DEFAULT_MAX_BODY_BYTES)
     max_pixels = _env_int("ASCII_ART_MAX_PIXELS", DEFAULT_MAX_PIXELS)
+    max_cells = _env_int("ASCII_ART_MAX_CELLS", DEFAULT_MAX_CELLS)
 
     # Pillow refuses to even open a decompression bomb above this many pixels;
     # set it once here rather than per-request so concurrent threads never race.
@@ -484,10 +501,12 @@ def main() -> None:
         port,
         max_body_bytes=max_body_bytes,
         max_pixels=max_pixels,
+        max_cells=max_cells,
     )
     print(
         f"{_PROG}: listening on http://{host}:{port} "
-        f"(max upload {max_body_bytes} bytes, max {max_pixels} pixels)",
+        f"(max upload {max_body_bytes} bytes, max {max_pixels} pixels, "
+        f"max {max_cells} cells)",
         flush=True,
     )
     try:

@@ -18,7 +18,12 @@ from .filters import FilterSpec, validate as validate_filters
 from .geometry import parse_font_ratio, terminal_box
 from .loader import formats_report, load_image
 from .output import FORMATS, format_canvas
-from .palette import RGB, resolve_depth, stdout_is_tty
+from .palette import (
+    auto_depth_for_format,
+    parse_colour,
+    resolve_depth,
+    stdout_is_tty,
+)
 from .ramp import DEFAULT_RAMP
 from .render import (
     ALPHA_MODES,
@@ -97,20 +102,6 @@ class _Parser(argparse.ArgumentParser):
     def error(self, message: str):  # type: ignore[override]
         self.print_usage(sys.stderr)
         self.exit(1, f"{PROG}: error: {message}\n")
-
-
-def _hex_colour(text: str) -> RGB:
-    raw = text.strip().lstrip("#").lower()
-    named = {"black": "000000", "white": "ffffff"}
-    raw = named.get(raw, raw)
-    if len(raw) == 3:
-        raw = "".join(ch * 2 for ch in raw)
-    if len(raw) != 6:
-        raise UsageError(f"invalid colour {text!r} (expected #RRGGBB)")
-    try:
-        return (int(raw[0:2], 16), int(raw[2:4], 16), int(raw[4:6], 16))
-    except ValueError:
-        raise UsageError(f"invalid colour {text!r} (expected #RRGGBB)") from None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -293,10 +284,8 @@ def _resolve_depth(args: argparse.Namespace, fmt_hint: str) -> str:
         return "none"
     if explicit:
         return requested
-    if args.format == "html":
-        return "truecolor"
-    if args.format == "ansi":
-        return "truecolor"
+    if args.format in ("html", "ansi"):
+        return auto_depth_for_format(args.format)
     return resolve_depth(
         "auto",
         is_tty=stdout_is_tty() and args.output is None,
@@ -316,7 +305,7 @@ def _build_options(args: argparse.Namespace, depth: str) -> RenderOptions:
         flip_y=args.flip_y,
     )
     validate_filters(filters)
-    alpha_bg = _hex_colour(args.alpha_bg) if args.alpha_bg else None
+    alpha_bg = parse_colour(args.alpha_bg) if args.alpha_bg else None
     return RenderOptions(
         mode=args.mode,
         chars=args.chars,
