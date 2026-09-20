@@ -13,6 +13,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install the baseline JetBrainsMono Nerd Font
+        run: |
+          curl -sSL -o "$RUNNER_TEMP/JetBrainsMono.zip" \
+            https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/JetBrainsMono.zip
+          echo "fab782a66f7d3019da64f6572db9fc5d3a4bcb19f9fa13e2d8a62e3693d6396e  $RUNNER_TEMP/JetBrainsMono.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/fonts"
+          unzip -o -j "$RUNNER_TEMP/JetBrainsMono.zip" \
+            JetBrainsMonoNerdFont-Regular.ttf -d "$RUNNER_TEMP/fonts"
+          echo "ASCII_ART_FONT=$RUNNER_TEMP/fonts/JetBrainsMonoNerdFont-Regular.ttf" >> "$GITHUB_ENV"
       - name: Install package and test runner
         run: |
           python -m venv .venv

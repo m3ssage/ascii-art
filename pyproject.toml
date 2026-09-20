@@ -9,7 +9,6 @@ description = "Script-safe image-to-ASCII renderer: measured ramps, honest alpha
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-classifiers = ["License :: OSI Approved :: MIT License"]
 dependencies = ["Pillow>=9.1"]
 
 [project.scripts]
