@@ -269,11 +269,14 @@ replicas.  `GET /healthz` returns `ok` for health checks.
 The image runs as an unprivileged user (`ascii`, uid 10001), builds from
 `python:3.12-slim`, and keeps all build tooling in a throwaway build stage.
 
-- Startup command (measured): `python -m ascii_art.web`, which prints
+- Startup command (the container's `CMD`, verified by running the service
+  locally): `python -m ascii_art.web`, which prints
   `ascii-art-web: listening on http://0.0.0.0:8080 (max upload 20971520 bytes, max 40000000 pixels)`.
-- Image size: **not yet measured** — the Dockerfile/compose file have not been
-  built in this working environment (no Docker daemon), so the container is
-  currently untested.  After the first build, record `docker images ascii-art-web` here.
+- Image size: **not stated** — the container image has **not been built or run
+  on this host** (no Docker daemon is available here), so there is no measured
+  size and no container build/run transcript to report.  `docker compose config`
+  parses cleanly, but the `Dockerfile` and `docker-compose.yml` have not been
+  exercised against a live daemon on this machine.
 
 ## Not in this version
 
