@@ -168,6 +168,20 @@ def test_default_form_fields_are_submittable(server) -> None:
     assert not problems, "default form controls are invalid: " + "; ".join(problems)
 
 
+class _FormFieldNames(HTMLParser):
+    """Collect the ``name`` of every submittable form control."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.names: set = set()
+
+    def handle_starttag(self, tag, attrs) -> None:
+        if tag in ("input", "select", "textarea"):
+            name = dict(attrs).get("name")
+            if name:
+                self.names.add(name)
+
+
 def test_served_form_covers_the_cli_parameter_surface(server) -> None:
     """Every CLI flag the web form mirrors stays reachable by name.
 
@@ -179,16 +193,21 @@ def test_served_form_covers_the_cli_parameter_surface(server) -> None:
 
     status, _, body = _request(server.server_port, "GET", "/")
     assert status == 200
-    html = body.decode("utf-8")
-    names = {
+    parser = _FormFieldNames()
+    parser.feed(body.decode("utf-8"))
+    expected = {
         "mode", "chars", "ramp", "edge_threshold", "color", "dither", "seed",
         "background", "invert", "fg_only", "alpha", "alpha_bg", "alpha_threshold",
         "width", "height", "size", "scale", "fit", "stretch", "font_ratio",
         "brightness", "contrast", "gamma", "rotate", "flip_x", "flip_y",
         "format", "polite",
     }
-    missing = [n for n in sorted(names) if f'name="{n}"' not in html]
-    assert not missing, "form fields missing after restyle: " + ", ".join(missing)
+    assert parser.names == expected, (
+        "form fields changed after restyle: missing "
+        + repr(sorted(expected - parser.names))
+        + ", unexpected "
+        + repr(sorted(parser.names - expected))
+    )
 
 
 class _RadioInputs(HTMLParser):

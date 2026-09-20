@@ -768,10 +768,6 @@ INDEX_HTML = r"""<!doctype html>
           </select>
         </label>
         <label class="ctl-label span-3">
-          <span>seed</span>
-          <input class="ctl" type="number" name="seed" step="1" placeholder="none">
-        </label>
-        <label class="ctl-label span-3">
           <span>background</span>
           <select class="ctl" name="background">
             <option value="auto" selected>auto</option>
@@ -786,9 +782,10 @@ INDEX_HTML = r"""<!doctype html>
       </div>
 
       <details class="advanced" id="advanced">
-        <summary>advanced <span class="hint">chars · ramp order · alpha · threshold · fit/stretch · font-ratio · rotate · flips · format</span></summary>
+        <summary>advanced <span class="hint">chars · seed · ramp order · alpha · threshold · fit/stretch · font-ratio · rotate · flips · format</span></summary>
         <div class="advanced-body">
           <label class="ctl-label"><span>chars</span><input class="ctl" type="text" name="chars" placeholder="default measured ramp"></label>
+          <label class="ctl-label"><span>seed</span><input class="ctl" type="number" name="seed" step="1" placeholder="none"></label>
           <label class="ctl-label"><span>ramp order</span><select class="ctl" name="ramp">
             <option value="measured" selected>measured</option>
             <option value="as-given">as-given</option>
@@ -844,7 +841,6 @@ INDEX_HTML = r"""<!doctype html>
         <button type="button" class="btn primary" id="copy-btn">Copy text</button>
         <button type="button" class="btn ghost" id="download-txt-btn">Download .txt</button>
         <button type="button" class="btn ghost" id="download-html-btn">Download .html</button>
-        <button type="button" class="btn ghost" id="download-ans-btn" hidden>Download .ans</button>
         <span class="hint">transparent pixels stay transparent</span>
       </div>
     </section>
@@ -877,7 +873,6 @@ INDEX_HTML = r"""<!doctype html>
   var copyBtn = document.getElementById("copy-btn");
   var downloadTxtBtn = document.getElementById("download-txt-btn");
   var downloadHtmlBtn = document.getElementById("download-html-btn");
-  var downloadAnsBtn = document.getElementById("download-ans-btn");
   var sheetToggle = document.getElementById("sheet-toggle");
   var colorSel = form.querySelector('select[name="color"]');
   var formatSel = form.querySelector('select[name="format"]');
@@ -886,7 +881,6 @@ INDEX_HTML = r"""<!doctype html>
 
   var file = null;
   var last = null;
-  var rendered = {};
 
   function formatBytes(n) {
     if (n < 1024) return n + " B";
@@ -896,7 +890,6 @@ INDEX_HTML = r"""<!doctype html>
 
   function resetStage() {
     last = null;
-    rendered = {};
     stagePlaceholder.hidden = false;
     stageMeta.hidden = true;
     stageBody.hidden = true;
@@ -916,7 +909,6 @@ INDEX_HTML = r"""<!doctype html>
   function showError(msg) { errorEl.textContent = msg; errorEl.hidden = false; }
   function clearError() { errorEl.hidden = true; }
 
-  drop.addEventListener("click", function () { fileInput.click(); });
   drop.addEventListener("keydown", function (e) {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
   });
@@ -931,24 +923,25 @@ INDEX_HTML = r"""<!doctype html>
     if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
   });
 
+  function effectiveDepth() {
+    if (colorSel.value !== "auto") return colorSel.value;
+    return formatSel.value === "text" ? "none" : "truecolor";
+  }
+
   function syncHalf() {
-    var none = colorSel.value === "none";
-    halfRadio.disabled = none;
-    if (none && halfRadio.checked) rampRadio.checked = true;
+    var depth = effectiveDepth();
+    var needsColour = depth === "none" || depth === "2";
+    halfRadio.disabled = needsColour;
+    if (needsColour && halfRadio.checked) rampRadio.checked = true;
   }
   colorSel.addEventListener("change", syncHalf);
+  formatSel.addEventListener("change", syncHalf);
   syncHalf();
 
   form.querySelectorAll('input[type="range"]').forEach(function (r) {
     var out = r.parentElement.querySelector("output");
     r.addEventListener("input", function () { if (out) out.value = r.value; });
   });
-
-  function syncAnsButton() {
-    downloadAnsBtn.hidden = formatSel.value !== "ansi";
-  }
-  formatSel.addEventListener("change", syncAnsButton);
-  syncAnsButton();
 
   sheetToggle.addEventListener("click", function () {
     var open = document.body.classList.toggle("sheet-open");
@@ -959,9 +952,6 @@ INDEX_HTML = r"""<!doctype html>
     document.body.classList.remove("sheet-open");
     sheetToggle.textContent = "tune controls";
   }
-
-  form.addEventListener("input", function () { rendered = {}; });
-  form.addEventListener("change", function () { rendered = {}; });
 
   function requestRender(format) {
     return new Promise(function (resolve, reject) {
@@ -987,16 +977,6 @@ INDEX_HTML = r"""<!doctype html>
     });
   }
 
-  function ensureRendered(format) {
-    return new Promise(function (resolve, reject) {
-      if (rendered[format]) { resolve(rendered[format]); return; }
-      requestRender(format).then(function (data) {
-        rendered[format] = data;
-        resolve(data);
-      }, reject);
-    });
-  }
-
   function describeParams() {
     var mode = form.querySelector('input[name="mode"]:checked');
     var dither = form.querySelector('select[name="dither"]').value;
@@ -1010,8 +990,6 @@ INDEX_HTML = r"""<!doctype html>
     if (!file) { showError("Choose or drop an image first."); return; }
     requestRender(null).then(function (data) {
       last = data;
-      rendered = {};
-      rendered[data.format] = data;
       stageFile.textContent = file.name;
       stageParams.textContent = describeParams();
       stagePlaceholder.hidden = true;
@@ -1073,12 +1051,12 @@ INDEX_HTML = r"""<!doctype html>
 
   function downloadAs(format) {
     if (!file) { showError("Choose or drop an image first."); return; }
-    ensureRendered(format).then(downloadBlob, function (err) { showError(err.message); });
+    if (last && last.format === format) { downloadBlob(last); return; }
+    requestRender(format).then(downloadBlob, function (err) { showError(err.message); });
   }
 
   downloadTxtBtn.addEventListener("click", function () { downloadAs("text"); });
   downloadHtmlBtn.addEventListener("click", function () { downloadAs("html"); });
-  downloadAnsBtn.addEventListener("click", function () { downloadAs("ansi"); });
 })();
 </script>
 </body>
