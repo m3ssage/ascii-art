@@ -38,7 +38,7 @@ This file is the project's committed home for project-intrinsic agent knowledge:
   decoded pixels (`ASCII_ART_MAX_PIXELS`) and the output grid
   (`ASCII_ART_MAX_CELLS`, enforced on the resolved geometry before rendering).
   `Dockerfile`/`docker-compose.yml` package it; see the README's
-  "Run the web app (Docker)" section.
+  "Running it on a host" section.
 
 ## Sharp edges
 

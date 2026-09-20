@@ -252,7 +252,7 @@ To stop:
 $ docker compose down
 ```
 
-### Configuration
+### The web app
 
 `ascii_art.web` puts a browser interface on the renderer: upload an image,
 set the same parameters the CLI takes (same names and defaults), render, then
