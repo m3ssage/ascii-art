@@ -173,7 +173,7 @@ Photo: Pexels, photo 31284696 (pexels.com) — free to use and redistribute.
 
 ```console
 $ .venv/bin/pip install -e . pytest
-$ .venv/bin/python -m pytest                  # behaviour, render and quality suites
+$ .venv/bin/python -m pytest                  # behaviour, render, web and quality suites
 $ .venv/bin/python -m pytest -m quality       # just the section 6.3 regression suite
 ```
 
@@ -227,7 +227,8 @@ qual/           metric runner, report-methodology cross-check, figures, results
 set the same parameters the CLI takes (same names and defaults), render, then
 copy or download the result.  Uploads are decoded and rendered in memory —
 nothing is written to disk or sent anywhere — and the request body is
-size-capped.
+size-capped.  For a local (non-Docker) run, use `python -m ascii_art.web` or
+the installed `ascii-art-web` console script.
 
 Build and start:
 
@@ -284,4 +285,4 @@ The image runs as an unprivileged user (`ascii`, uid 10001), builds from
 Deliberately, per the confirmed scope fence. No animation, video or webcam (GIF
 contributes its first frame); no kitty/sixel/iTerm passthrough; no interactive
 TUI; no structural glyph matching or custom font rasterisation; no neural
-generation; no ASCII-to-image; no packaging beyond a working local build.
+generation; no ASCII-to-image.
