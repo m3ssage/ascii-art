@@ -168,6 +168,80 @@ def test_default_form_fields_are_submittable(server) -> None:
     assert not problems, "default form controls are invalid: " + "; ".join(problems)
 
 
+class _FormFieldNames(HTMLParser):
+    """Collect the ``name`` of every submittable form control."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.names: set = set()
+
+    def handle_starttag(self, tag, attrs) -> None:
+        if tag in ("input", "select", "textarea"):
+            name = dict(attrs).get("name")
+            if name:
+                self.names.add(name)
+
+
+def test_served_form_covers_the_cli_parameter_surface(server) -> None:
+    """Every CLI flag the web form mirrors stays reachable by name.
+
+    The restyle reorganises the controls (hero mode tiles, sliders, a bottom
+    sheet on narrow screens) but must not drop a parameter: the page still
+    submits the CLI's flag names verbatim so the library keeps owning the
+    mapping back to ``RenderOptions``.
+    """
+
+    status, _, body = _request(server.server_port, "GET", "/")
+    assert status == 200
+    parser = _FormFieldNames()
+    parser.feed(body.decode("utf-8"))
+    expected = {
+        "mode", "chars", "ramp", "edge_threshold", "color", "dither", "seed",
+        "background", "invert", "fg_only", "alpha", "alpha_bg", "alpha_threshold",
+        "width", "height", "size", "scale", "fit", "stretch", "font_ratio",
+        "brightness", "contrast", "gamma", "rotate", "flip_x", "flip_y",
+        "format", "polite",
+    }
+    assert parser.names == expected, (
+        "form fields changed after restyle: missing "
+        + repr(sorted(expected - parser.names))
+        + ", unexpected "
+        + repr(sorted(parser.names - expected))
+    )
+
+
+class _RadioInputs(HTMLParser):
+    """Collect ``<input type="radio">`` controls from the served page."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.radios: list = []
+
+    def handle_starttag(self, tag, attrs) -> None:
+        attributes = dict(attrs)
+        if tag == "input" and attributes.get("type") == "radio":
+            self.radios.append(attributes)
+
+
+def test_mode_tiles_are_radios_with_the_cli_default(server) -> None:
+    """The five render modes are hero tiles that submit ``mode`` by value.
+
+    The playground renders the mode axis as tile cards instead of a ``select``;
+    they must still be a single radio group named ``mode`` whose values match
+    the CLI's modes and whose checked default is the CLI default (``ramp``), so
+    the selected tile is what actually reaches ``POST /render``.
+    """
+
+    status, _, body = _request(server.server_port, "GET", "/")
+    assert status == 200
+    parser = _RadioInputs()
+    parser.feed(body.decode("utf-8"))
+    modes = [r for r in parser.radios if r.get("name") == "mode"]
+    assert {r.get("value") for r in modes} == {"ramp", "braille", "block", "half", "edges"}
+    checked = [r.get("value") for r in modes if "checked" in r]
+    assert checked == ["ramp"]
+
+
 def test_healthz(server) -> None:
     status, _, body = _request(server.server_port, "GET", "/healthz")
     assert status == 200
