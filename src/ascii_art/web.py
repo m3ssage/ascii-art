@@ -1037,20 +1037,29 @@ INDEX_HTML = r"""<!doctype html>
     copyText(last.preview);
   });
 
-  function downloadBlob(data) {
-    var blob = new Blob([data.output], { type: data.mime + ";charset=utf-8" });
+  function saveBlob(text, mime, filename) {
+    var blob = new Blob([text], { type: mime + ";charset=utf-8" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
-    a.download = data.filename;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
 
+  function downloadBlob(data) {
+    saveBlob(data.output, data.mime, data.filename);
+  }
+
   function downloadAs(format) {
     if (!file) { showError("Choose or drop an image first."); return; }
+    if (format === "text") {
+      if (!last) { showError("Render the image first."); return; }
+      saveBlob(last.preview, "text/plain", "ascii-art.txt");
+      return;
+    }
     if (last && last.format === format) { downloadBlob(last); return; }
     requestRender(format).then(downloadBlob, function (err) { showError(err.message); });
   }
