@@ -12,7 +12,25 @@ import sys
 from functools import lru_cache
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from .errors import UsageError
+
 RGB = Tuple[int, int, int]
+
+
+def parse_colour(text: str) -> RGB:
+    """Parse ``#RRGGBB`` (or ``black``/``white``, or 3-digit hex)."""
+
+    raw = text.strip().lstrip("#").lower()
+    named = {"black": "000000", "white": "ffffff"}
+    raw = named.get(raw, raw)
+    if len(raw) == 3:
+        raw = "".join(ch * 2 for ch in raw)
+    if len(raw) != 6:
+        raise UsageError(f"invalid colour {text!r} (expected #RRGGBB)")
+    try:
+        return (int(raw[0:2], 16), int(raw[2:4], 16), int(raw[4:6], 16))
+    except ValueError:
+        raise UsageError(f"invalid colour {text!r} (expected #RRGGBB)") from None
 
 #: Classic xterm 16-colour palette.
 PALETTE_16: Tuple[RGB, ...] = (
@@ -173,8 +191,6 @@ def quantize_rgb(
         return out
 
     if dither != "diffusion":
-        from .errors import UsageError
-
         raise UsageError(f"unknown --dither {dither!r}")
 
     # Floyd-Steinberg in RGB.
@@ -217,6 +233,16 @@ def _clamp(value: float) -> int:
     return int(value)
 
 
+def auto_depth_for_format(fmt: str) -> str:
+    """Resolve ``auto`` for an explicit output format: colour formats win.
+
+    Shared by the CLI (for an explicit ``--format``) and the browser, which
+    always has an explicit format and no TTY to probe.
+    """
+
+    return "truecolor" if fmt in ("ansi", "html") else "none"
+
+
 def resolve_depth(
     requested: str,
     *,
@@ -235,8 +261,6 @@ def resolve_depth(
     if requested in ("none", "2", "8", "16", "256", "truecolor"):
         return requested
     if requested != "auto":
-        from .errors import UsageError
-
         raise UsageError(f"unknown --color {requested!r}")
 
     if fmt == "html":
@@ -276,6 +300,8 @@ __all__ = [
     "nearest_index",
     "palette_256",
     "palette_for_depth",
+    "auto_depth_for_format",
+    "parse_colour",
     "quantize_rgb",
     "resolve_depth",
     "stdout_is_tty",
