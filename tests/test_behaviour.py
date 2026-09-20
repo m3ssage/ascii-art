@@ -538,7 +538,7 @@ def test_broken_pipe_is_not_an_error(paths):
         f"{sys.executable} -m ascii_art {paths['photo']} --width 90 | head -1 > /dev/null"
     )
     completed = subprocess.run(
-        ["sh", "-o", "pipefail", "-c", script],
+        ["bash", "-o", "pipefail", "-c", script],
         capture_output=True,
         cwd=str(pathlib.Path(__file__).resolve().parent.parent),
         timeout=60,
