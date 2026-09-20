@@ -524,164 +524,337 @@ INDEX_HTML = r"""<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ascii-art</title>
 <style>
-  body { font-family: system-ui, -apple-system, sans-serif; margin: 0 auto; padding: 1rem; line-height: 1.45; max-width: 62rem; }
-  h1 { font-size: 1.35rem; margin: 0 0 0.25rem; }
-  .note { color: #777; font-size: 0.85rem; margin: 0 0 1rem; }
-  #drop { border: 2px dashed #888; border-radius: 8px; padding: 1.4rem; text-align: center; cursor: pointer; }
-  #drop.dragover { border-color: #4af; background: rgba(64,160,255,0.08); }
-  #drop-text { font-weight: 600; }
-  #preview { max-width: 180px; max-height: 140px; display: block; margin: 0.6rem auto 0; }
-  fieldset { border: 1px solid #888; border-radius: 6px; margin: 0.7rem 0; padding: 0.55rem 0.8rem 0.7rem; }
-  legend { font-weight: 600; padding: 0 0.3rem; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.15rem 1.1rem; }
-  label { display: flex; align-items: baseline; gap: 0.4rem; margin: 0.28rem 0; flex-wrap: wrap; }
-  label > span { min-width: 9.5rem; color: #444; }
-  input[type=number], input[type=text], select { font: inherit; padding: 0.18rem 0.3rem; max-width: 100%; box-sizing: border-box; }
-  input[type=number] { width: 7rem; }
-  input[type=text] { flex: 1; min-width: 8rem; }
-  select { flex: 1; min-width: 8rem; }
-  .check { display: flex; align-items: center; gap: 0.4rem; }
-  .check input { width: auto; }
-  .check span { min-width: 0 !important; }
-  button { font: inherit; padding: 0.4rem 0.9rem; margin: 0.5rem 0.5rem 0 0; cursor: pointer; }
-  #status { color: #777; min-height: 1.2em; }
-  .error { color: #b33; border: 1px solid #b33; border-radius: 6px; padding: 0.5rem 0.8rem; margin: 0.5rem 0; white-space: pre-wrap; }
-  pre#result { border: 1px solid #888; border-radius: 6px; padding: 0.7rem; overflow: auto; white-space: pre; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.72rem; line-height: 1.05; max-height: 70vh; }
-  iframe#result-frame { width: 100%; height: 62vh; border: 1px solid #888; border-radius: 6px; background: #fff; }
-  @media (max-width: 42rem) {
-    body { padding: 0.5rem; }
-    label > span { min-width: 8rem; }
-    .grid { grid-template-columns: 1fr; }
+  :root {
+    --bg-0: #171030;
+    --bg-1: #241542;
+    --bg-2: #331a4f;
+    --ink: #efe9ff;
+    --ink-dim: rgba(239, 233, 255, .64);
+    --pink: #ff5e8a;
+    --amber: #ffd166;
+    --panel: rgba(0, 0, 0, .35);
+    --panel-line: rgba(255, 255, 255, .16);
+    --stage: rgba(0, 0, 0, .45);
+    --stage-line: rgba(255, 255, 255, .12);
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { min-height: 100%; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: linear-gradient(160deg, var(--bg-0) 0%, var(--bg-1) 55%, var(--bg-2) 100%);
+    background-attachment: fixed;
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.45;
+  }
+  .wrap { max-width: 72rem; margin: 0 auto; padding: 1.2rem 1.4rem 3rem; }
+  u { text-decoration-color: rgba(255, 94, 138, .6); }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+  /* ---- top bar ---- */
+  .topbar { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-bottom: 1.1rem; }
+  .logo { font-size: 1.9rem; font-weight: 900; letter-spacing: -.03em; line-height: 1; margin: 0; }
+  .logo .dot { color: var(--pink); }
+  .drop {
+    margin-left: auto;
+    display: flex; align-items: center; gap: .55rem;
+    border: 2px dashed var(--panel-line);
+    border-radius: .8rem;
+    padding: .55rem .9rem;
+    cursor: pointer;
+    font-size: .82rem;
+    color: var(--ink-dim);
+    background: rgba(255, 255, 255, .03);
+    max-width: 100%;
+  }
+  .drop.dragover { border-color: var(--pink); background: rgba(255, 94, 138, .12); }
+  .drop img { max-width: 58px; max-height: 42px; border-radius: .4rem; display: block; }
+
+  /* ---- mode tiles ---- */
+  fieldset.mode-set { border: 0; padding: 0; margin: 0 0 .9rem; min-width: 0; }
+  .mode-grid {
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .6rem;
+  }
+  .mode-tile {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center; gap: .15rem;
+    padding: .7rem .4rem .6rem;
+    text-align: center;
+    background: rgba(255, 255, 255, .06);
+    border: 1px solid rgba(255, 255, 255, .14);
+    border-radius: .8rem;
+    cursor: pointer;
+    transition: border-color .12s ease, background .12s ease;
+  }
+  .mode-tile:hover { border-color: rgba(255, 255, 255, .4); }
+  .mode-tile input { position: absolute; opacity: 0; pointer-events: none; }
+  .mode-tile .glyph { font-family: ui-monospace, "DejaVu Sans Mono", "Noto Sans Mono", Menlo, Consolas, monospace; font-size: 1.05rem; line-height: 1; color: var(--amber); }
+  .mode-tile .name { font-weight: 700; font-size: .82rem; }
+  .mode-tile .desc { font-size: .66rem; opacity: .7; line-height: 1.15; }
+  .mode-tile:has(input:checked) { border-color: var(--pink); background: rgba(255, 94, 138, .16); }
+  .mode-tile:has(input:checked) .glyph { color: #fff; }
+  .mode-tile:has(input:disabled) { opacity: .4; cursor: not-allowed; }
+
+  /* ---- controls ---- */
+  .controls {
+    display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: .75rem .85rem;
+    background: rgba(0, 0, 0, .22); border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 1rem; padding: .9rem .95rem; margin: 0 0 .9rem;
+  }
+  .ctl-label { display: flex; flex-direction: column; gap: .32rem; min-width: 0; }
+  .ctl-label > span:first-child { font-size: .64rem; text-transform: uppercase; letter-spacing: .07em; opacity: .62; }
+  .ctl { font: inherit; background: var(--panel); border: 1px solid var(--panel-line); border-radius: .6rem; color: var(--ink); padding: .45rem .55rem; width: 100%; }
+  select.ctl { cursor: pointer; }
+  input.ctl[type=number], input.ctl[type=text] { min-width: 0; }
+  input[type=range] { width: 100%; accent-color: var(--pink); margin: 0; }
+  .slider-row { display: flex; align-items: center; gap: .5rem; }
+  .slider-row output { font-size: .72rem; font-variant-numeric: tabular-nums; opacity: .8; min-width: 2.4rem; text-align: right; }
+  .span-3 { grid-column: span 3; }
+
+  /* ---- advanced ---- */
+  .advanced { margin: 0 0 .9rem; background: rgba(0, 0, 0, .22); border: 1px solid rgba(255, 255, 255, .1); border-radius: 1rem; }
+  .advanced > summary { list-style: none; cursor: pointer; padding: .6rem .9rem; font-size: .8rem; color: var(--ink-dim); user-select: none; }
+  .advanced > summary::-webkit-details-marker { display: none; }
+  .advanced > summary::before { content: "▸ "; color: var(--pink); }
+  .advanced[open] > summary::before { content: "▾ "; }
+  .advanced .hint { opacity: .55; }
+  .advanced-body { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .75rem .85rem; padding: 0 .9rem .9rem; }
+  .advanced-body .ctl-label, .advanced-body .check { grid-column: span 2; }
+  .check { display: flex; align-items: center; gap: .45rem; font-size: .8rem; min-width: 0; }
+  .check input { width: auto; accent-color: var(--pink); margin: 0; }
+  .check span { min-width: 0; }
+
+  /* ---- render button ---- */
+  .render-row { display: flex; justify-content: flex-end; margin: 0 0 .9rem; }
+  .btn { font: inherit; font-weight: 700; border-radius: .8rem; cursor: pointer; border: 1px solid transparent; padding: .6rem 1.15rem; }
+  .btn.primary { background: var(--pink); color: #22103a; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.ghost { background: rgba(255, 255, 255, .12); color: var(--ink); }
+  .btn.ghost:hover { background: rgba(255, 255, 255, .2); }
+
+  /* ---- stage ---- */
+  .stage { background: var(--stage); border: 1px solid var(--stage-line); border-radius: .8rem; padding: .95rem; }
+  .stage-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1.1rem; margin: 0 0 .55rem; font-size: .78rem; color: var(--ink-dim); }
+  .stage-meta .file { color: var(--ink); }
+  .stage-placeholder { color: var(--ink-dim); text-align: center; padding: 2.2rem 1rem; font-size: .9rem; }
+  .stage-body { max-height: 70vh; overflow: auto; }
+  pre.art { margin: 0; white-space: pre; font-family: ui-monospace, "DejaVu Sans Mono", "Noto Sans Mono", Menlo, Consolas, monospace; font-size: 12px; line-height: 1.12; letter-spacing: 0; color: inherit; }
+  iframe#result-frame { width: 100%; height: 62vh; border: 0; background: #fff; border-radius: .5rem; }
+  .stage-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+  .stage-actions .hint { margin-left: auto; align-self: center; font-size: .72rem; color: var(--ink-dim); }
+
+  #status { color: var(--ink-dim); min-height: 1.2em; margin-top: .5rem; font-size: .8rem; }
+  .error { color: #ffb3c0; border: 1px solid var(--pink); border-radius: .6rem; padding: .5rem .8rem; margin: .5rem 0; white-space: pre-wrap; font-size: .85rem; }
+
+  /* ---- bottom sheet (narrow) ---- */
+  #sheet-toggle { display: none; }
+
+  @media (max-width: 52rem) {
+    .wrap { padding: .9rem .9rem 5.6rem; }
+    .logo { font-size: 1.5rem; }
+    .topbar { flex-direction: column; align-items: stretch; gap: .6rem; }
+    .drop { margin-left: 0; width: 100%; justify-content: center; }
+
+    /* tile carousel */
+    .mode-grid { display: flex; overflow-x: auto; gap: .5rem; scroll-snap-type: x mandatory; padding-bottom: .25rem; -webkit-overflow-scrolling: touch; }
+    .mode-tile { flex: 0 0 8.6rem; scroll-snap-align: start; }
+
+    /* full-bleed stage */
+    .stage { margin-left: -.9rem; margin-right: -.9rem; border-radius: 0; border-left: 0; border-right: 0; }
+
+    /* controls collapse into a bottom sheet */
+    #controls-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; max-height: 62vh; overflow-y: auto; transform: translateY(102%); visibility: hidden; transition: transform .25s ease, visibility .25s; background: rgba(20, 14, 38, .98); border-top: 1px solid var(--panel-line); border-radius: 1rem 1rem 0 0; padding: .9rem; }
+    body.sheet-open #controls-sheet { transform: translateY(0); visibility: visible; }
+    #controls-sheet .controls, #controls-sheet .advanced { margin-bottom: .6rem; border-radius: .8rem; }
+    #controls-sheet .render-row { margin-bottom: 0; }
+    #controls-sheet .render-row .btn { width: 100%; }
+    #sheet-toggle {
+      display: block;
+      position: fixed; left: .75rem; right: .75rem; bottom: .75rem; z-index: 30;
+      background: var(--pink); color: #22103a; border: 0; border-radius: .8rem;
+      font: inherit; font-weight: 700; padding: .85rem 1rem; cursor: pointer;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .4);
+    }
+    .controls { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .span-3 { grid-column: span 6; }
+    .advanced-body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .advanced-body .ctl-label, .advanced-body .check { grid-column: span 2; }
   }
 </style>
 </head>
 <body>
-<h1>ascii-art</h1>
-<p class="note">Upload an image, set the parameters, and render it to ASCII/Unicode art.
-Uploads are processed in memory on the server — nothing is written to disk or sent anywhere else.</p>
+<div class="wrap">
+  <header class="topbar">
+    <h1 class="logo">make something cool<span class="dot">.</span></h1>
+    <label id="drop" class="drop" tabindex="0" role="button" aria-label="Choose or drop an image">
+      <input type="file" id="file" accept="image/*" class="sr-only">
+      <span id="drop-text">⬆ drop an image here — or <u>choose file</u> · png jpeg gif webp bmp</span>
+      <img id="preview" alt="" hidden>
+    </label>
+  </header>
 
-<div id="drop" tabindex="0" role="button" aria-label="Choose or drop an image">
-  <input type="file" id="file" accept="image/*" hidden>
-  <div id="drop-text">Choose an image or drop it here</div>
-  <img id="preview" alt="" hidden>
+  <form id="form" autocomplete="off">
+    <fieldset class="mode-set">
+      <legend class="sr-only">render mode</legend>
+      <div class="mode-grid">
+        <label class="mode-tile">
+          <input type="radio" name="mode" value="ramp" checked>
+          <span class="glyph" aria-hidden="true">@%#*+=</span>
+          <span class="name">ramp</span>
+          <span class="desc">photos · the default</span>
+        </label>
+        <label class="mode-tile">
+          <input type="radio" name="mode" value="braille">
+          <span class="glyph" aria-hidden="true">⠿⠺⠖⠄</span>
+          <span class="name">braille</span>
+          <span class="desc">4× detail · square cells</span>
+        </label>
+        <label class="mode-tile">
+          <input type="radio" name="mode" value="block">
+          <span class="glyph" aria-hidden="true">█▄▀░</span>
+          <span class="name">block</span>
+          <span class="desc">best tone</span>
+        </label>
+        <label class="mode-tile">
+          <input type="radio" name="mode" value="half">
+          <span class="glyph" aria-hidden="true">▀▄▀▄</span>
+          <span class="name">half</span>
+          <span class="desc">colour only</span>
+        </label>
+        <label class="mode-tile">
+          <input type="radio" name="mode" value="edges">
+          <span class="glyph" aria-hidden="true">/|\-</span>
+          <span class="name">edges</span>
+          <span class="desc">line art</span>
+        </label>
+      </div>
+    </fieldset>
+
+    <div id="controls-sheet">
+      <div class="controls">
+        <label class="ctl-label span-3">
+          <span>brightness</span>
+          <span class="slider-row"><input type="range" id="brightness" name="brightness" min="0" max="2" step="0.05" value="1.0"><output for="brightness">1.0</output></span>
+        </label>
+        <label class="ctl-label span-3">
+          <span>contrast</span>
+          <span class="slider-row"><input type="range" id="contrast" name="contrast" min="0" max="2" step="0.05" value="1.0"><output for="contrast">1.0</output></span>
+        </label>
+        <label class="ctl-label span-3">
+          <span>gamma</span>
+          <span class="slider-row"><input type="range" id="gamma" name="gamma" min="0.2" max="3" step="0.05" value="1.0"><output for="gamma">1.0</output></span>
+        </label>
+        <label class="ctl-label span-3">
+          <span>colour depth</span>
+          <select class="ctl" name="color">
+            <option value="auto" selected>auto</option>
+            <option value="none">none</option>
+            <option value="2">2</option>
+            <option value="8">8</option>
+            <option value="16">16</option>
+            <option value="256">256</option>
+            <option value="truecolor">truecolor</option>
+          </select>
+        </label>
+        <label class="ctl-label span-3">
+          <span>dither</span>
+          <select class="ctl" name="dither">
+            <option value="none" selected>none</option>
+            <option value="ordered">ordered</option>
+            <option value="diffusion">diffusion</option>
+            <option value="noise">noise</option>
+          </select>
+        </label>
+        <label class="ctl-label span-3">
+          <span>seed</span>
+          <input class="ctl" type="number" name="seed" step="1" placeholder="none">
+        </label>
+        <label class="ctl-label span-3">
+          <span>background</span>
+          <select class="ctl" name="background">
+            <option value="auto" selected>auto</option>
+            <option value="dark">dark</option>
+            <option value="light">light</option>
+          </select>
+        </label>
+        <label class="ctl-label span-3">
+          <span>width (cells)</span>
+          <input class="ctl" type="number" name="width" min="1" step="1" placeholder="80">
+        </label>
+      </div>
+
+      <details class="advanced" id="advanced">
+        <summary>advanced <span class="hint">chars · ramp order · alpha · threshold · fit/stretch · font-ratio · rotate · flips · format</span></summary>
+        <div class="advanced-body">
+          <label class="ctl-label"><span>chars</span><input class="ctl" type="text" name="chars" placeholder="default measured ramp"></label>
+          <label class="ctl-label"><span>ramp order</span><select class="ctl" name="ramp">
+            <option value="measured" selected>measured</option>
+            <option value="as-given">as-given</option>
+          </select></label>
+          <label class="ctl-label"><span>edge threshold</span><input class="ctl" type="number" name="edge_threshold" value="0.15" step="0.01" min="0"></label>
+          <label class="ctl-label"><span>alpha</span><select class="ctl" name="alpha">
+            <option value="transparent" selected>transparent</option>
+            <option value="composite">composite</option>
+          </select></label>
+          <label class="ctl-label"><span>alpha bg</span><input class="ctl" type="text" name="alpha_bg" placeholder="#RRGGBB"></label>
+          <label class="ctl-label"><span>alpha threshold</span><input class="ctl" type="number" name="alpha_threshold" value="128" min="0" max="255" step="1"></label>
+          <label class="ctl-label"><span>height (cells)</span><input class="ctl" type="number" name="height" min="1" step="1" placeholder="auto"></label>
+          <label class="ctl-label"><span>size (WxH)</span><input class="ctl" type="text" name="size" placeholder="80x40"></label>
+          <label class="ctl-label"><span>scale (N|max)</span><input class="ctl" type="text" name="scale" placeholder="1"></label>
+          <label class="ctl-label"><span>font ratio (W/H)</span><input class="ctl" type="text" name="font_ratio" value="1/2"></label>
+          <label class="ctl-label"><span>rotate</span><select class="ctl" name="rotate">
+            <option value="0" selected>0</option>
+            <option value="90">90</option>
+            <option value="180">180</option>
+            <option value="270">270</option>
+          </select></label>
+          <label class="ctl-label"><span>format</span><select class="ctl" name="format" id="format">
+            <option value="text" selected>text</option>
+            <option value="ansi">ansi</option>
+            <option value="html">html</option>
+          </select></label>
+          <label class="check"><input type="checkbox" name="fit" value="on"><span>fit (preserve aspect)</span></label>
+          <label class="check"><input type="checkbox" name="stretch" value="on"><span>stretch (fill exactly)</span></label>
+          <label class="check"><input type="checkbox" name="flip_x" value="on"><span>flip-x</span></label>
+          <label class="check"><input type="checkbox" name="flip_y" value="on"><span>flip-y</span></label>
+          <label class="check"><input type="checkbox" name="invert" value="on"><span>invert</span></label>
+          <label class="check"><input type="checkbox" name="fg_only" value="on"><span>fg-only</span></label>
+          <label class="check"><input type="checkbox" name="polite" value="on"><span>polite (strip unsafe escapes)</span></label>
+        </div>
+      </details>
+
+      <div class="render-row">
+        <button type="submit" class="btn primary" id="render-btn">Render ▸</button>
+      </div>
+    </div>
+
+    <section class="stage" id="stage">
+      <div class="stage-meta" id="stage-meta" hidden>
+        <span class="file" id="stage-file"></span>
+        <span id="stage-params"></span>
+      </div>
+      <div class="stage-placeholder" id="stage-placeholder">drop an image and hit render to see your art</div>
+      <div class="stage-body" id="stage-body" hidden>
+        <pre class="art" id="result"></pre>
+        <iframe id="result-frame" hidden title="rendered HTML output"></iframe>
+      </div>
+      <div class="stage-actions" id="stage-actions" hidden>
+        <button type="button" class="btn primary" id="copy-btn">Copy text</button>
+        <button type="button" class="btn ghost" id="download-txt-btn">Download .txt</button>
+        <button type="button" class="btn ghost" id="download-html-btn">Download .html</button>
+        <button type="button" class="btn ghost" id="download-ans-btn" hidden>Download .ans</button>
+        <span class="hint">transparent pixels stay transparent</span>
+      </div>
+    </section>
+
+    <div id="status"></div>
+    <div id="error" class="error" hidden></div>
+  </form>
 </div>
 
-<form id="form">
-  <fieldset>
-    <legend>Geometry</legend>
-    <div class="grid">
-      <label><span>width (cells)</span><input type="number" name="width" min="1" step="1" placeholder="80"></label>
-      <label><span>height (cells)</span><input type="number" name="height" min="1" step="1" placeholder="auto"></label>
-      <label><span>size (WxH)</span><input type="text" name="size" placeholder="80x40"></label>
-      <label><span>scale (N|max)</span><input type="text" name="scale" placeholder="1"></label>
-      <label class="check"><input type="checkbox" name="fit" value="on"><span>fit (preserve aspect)</span></label>
-      <label class="check"><input type="checkbox" name="stretch" value="on"><span>stretch (fill exactly)</span></label>
-      <label><span>font ratio (W/H)</span><input type="text" name="font_ratio" value="1/2"></label>
-    </div>
-  </fieldset>
-
-  <fieldset>
-    <legend>Render mode</legend>
-    <div class="grid">
-      <label><span>mode</span><select name="mode">
-        <option value="ramp" selected>ramp</option>
-        <option value="braille">braille</option>
-        <option value="block">block</option>
-        <option value="half">half (colour only)</option>
-        <option value="edges">edges</option>
-      </select></label>
-      <label><span>chars</span><input type="text" name="chars" placeholder="default measured ramp"></label>
-      <label><span>ramp order</span><select name="ramp">
-        <option value="measured" selected>measured</option>
-        <option value="as-given">as-given</option>
-      </select></label>
-      <label><span>edge threshold</span><input type="number" name="edge_threshold" value="0.15" step="0.01" min="0"></label>
-    </div>
-  </fieldset>
-
-  <fieldset>
-    <legend>Tone, colour and dithering</legend>
-    <div class="grid">
-      <label><span>color</span><select name="color">
-        <option value="auto" selected>auto (none)</option>
-        <option value="none">none</option>
-        <option value="2">2</option>
-        <option value="8">8</option>
-        <option value="16">16</option>
-        <option value="256">256</option>
-        <option value="truecolor">truecolor</option>
-      </select></label>
-      <label><span>dither</span><select name="dither">
-        <option value="none" selected>none</option>
-        <option value="ordered">ordered</option>
-        <option value="diffusion">diffusion</option>
-        <option value="noise">noise</option>
-      </select></label>
-      <label><span>seed</span><input type="number" name="seed" step="1" placeholder="none"></label>
-      <label><span>background</span><select name="background">
-        <option value="auto" selected>auto (dark)</option>
-        <option value="dark">dark</option>
-        <option value="light">light</option>
-      </select></label>
-      <label class="check"><input type="checkbox" name="invert" value="on"><span>invert</span></label>
-      <label class="check"><input type="checkbox" name="fg_only" value="on"><span>fg-only</span></label>
-    </div>
-  </fieldset>
-
-  <fieldset>
-    <legend>Alpha</legend>
-    <div class="grid">
-      <label><span>alpha</span><select name="alpha">
-        <option value="transparent" selected>transparent</option>
-        <option value="composite">composite</option>
-      </select></label>
-      <label><span>alpha bg</span><input type="text" name="alpha_bg" placeholder="#RRGGBB"></label>
-      <label><span>alpha threshold</span><input type="number" name="alpha_threshold" value="128" min="0" max="255" step="1"></label>
-    </div>
-  </fieldset>
-
-  <fieldset>
-    <legend>Pre-processing</legend>
-    <div class="grid">
-      <label><span>brightness</span><input type="number" name="brightness" value="1.0" step="0.1" min="0" max="10"></label>
-      <label><span>contrast</span><input type="number" name="contrast" value="1.0" step="0.1" min="0" max="10"></label>
-      <label><span>gamma</span><input type="number" name="gamma" value="1.0" step="0.01" min="0.01" max="10"></label>
-      <label><span>rotate</span><select name="rotate">
-        <option value="0" selected>0</option>
-        <option value="90">90</option>
-        <option value="180">180</option>
-        <option value="270">270</option>
-      </select></label>
-      <label class="check"><input type="checkbox" name="flip_x" value="on"><span>flip-x</span></label>
-      <label class="check"><input type="checkbox" name="flip_y" value="on"><span>flip-y</span></label>
-    </div>
-  </fieldset>
-
-  <fieldset>
-    <legend>Output</legend>
-    <div class="grid">
-      <label><span>format</span><select name="format">
-        <option value="text" selected>text</option>
-        <option value="ansi">ansi</option>
-        <option value="html">html</option>
-      </select></label>
-      <label class="check"><input type="checkbox" name="polite" value="on"><span>polite (strip unsafe escapes)</span></label>
-    </div>
-  </fieldset>
-
-  <p><button type="submit" id="render-btn">Render</button></p>
-</form>
-
-<div id="status"></div>
-<div id="error" class="error" hidden></div>
-<div id="result-wrap" hidden>
-  <p>
-    <button type="button" id="copy-btn">Copy</button>
-    <button type="button" id="download-btn">Download</button>
-  </p>
-  <pre id="result"></pre>
-  <iframe id="result-frame" hidden title="rendered HTML output"></iframe>
-</div>
+<button type="button" id="sheet-toggle">tune controls</button>
 
 <script>
 (function () {
@@ -693,14 +866,27 @@ Uploads are processed in memory on the server — nothing is written to disk or 
   var preview = document.getElementById("preview");
   var statusEl = document.getElementById("status");
   var errorEl = document.getElementById("error");
-  var resultWrap = document.getElementById("result-wrap");
+  var stagePlaceholder = document.getElementById("stage-placeholder");
+  var stageMeta = document.getElementById("stage-meta");
+  var stageFile = document.getElementById("stage-file");
+  var stageParams = document.getElementById("stage-params");
+  var stageBody = document.getElementById("stage-body");
+  var stageActions = document.getElementById("stage-actions");
   var resultPre = document.getElementById("result");
   var resultFrame = document.getElementById("result-frame");
   var copyBtn = document.getElementById("copy-btn");
-  var downloadBtn = document.getElementById("download-btn");
+  var downloadTxtBtn = document.getElementById("download-txt-btn");
+  var downloadHtmlBtn = document.getElementById("download-html-btn");
+  var downloadAnsBtn = document.getElementById("download-ans-btn");
+  var sheetToggle = document.getElementById("sheet-toggle");
+  var colorSel = form.querySelector('select[name="color"]');
+  var formatSel = form.querySelector('select[name="format"]');
+  var halfRadio = form.querySelector('input[name="mode"][value="half"]');
+  var rampRadio = form.querySelector('input[name="mode"][value="ramp"]');
 
   var file = null;
   var last = null;
+  var rendered = {};
 
   function formatBytes(n) {
     if (n < 1024) return n + " B";
@@ -708,9 +894,19 @@ Uploads are processed in memory on the server — nothing is written to disk or 
     return (n / 1048576).toFixed(1) + " MiB";
   }
 
+  function resetStage() {
+    last = null;
+    rendered = {};
+    stagePlaceholder.hidden = false;
+    stageMeta.hidden = true;
+    stageBody.hidden = true;
+    stageActions.hidden = true;
+  }
+
   function setFile(f) {
     file = f || null;
     if (!file) return;
+    resetStage();
     dropText.textContent = file.name + " (" + formatBytes(file.size) + ")";
     if (preview.src) URL.revokeObjectURL(preview.src);
     preview.src = URL.createObjectURL(file);
@@ -735,55 +931,106 @@ Uploads are processed in memory on the server — nothing is written to disk or 
     if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
   });
 
+  function syncHalf() {
+    var none = colorSel.value === "none";
+    halfRadio.disabled = none;
+    if (none && halfRadio.checked) rampRadio.checked = true;
+  }
+  colorSel.addEventListener("change", syncHalf);
+  syncHalf();
+
+  form.querySelectorAll('input[type="range"]').forEach(function (r) {
+    var out = r.parentElement.querySelector("output");
+    r.addEventListener("input", function () { if (out) out.value = r.value; });
+  });
+
+  function syncAnsButton() {
+    downloadAnsBtn.hidden = formatSel.value !== "ansi";
+  }
+  formatSel.addEventListener("change", syncAnsButton);
+  syncAnsButton();
+
+  sheetToggle.addEventListener("click", function () {
+    var open = document.body.classList.toggle("sheet-open");
+    sheetToggle.textContent = open ? "close" : "tune controls";
+  });
+
+  function closeSheet() {
+    document.body.classList.remove("sheet-open");
+    sheetToggle.textContent = "tune controls";
+  }
+
+  form.addEventListener("input", function () { rendered = {}; });
+  form.addEventListener("change", function () { rendered = {}; });
+
+  function requestRender(format) {
+    return new Promise(function (resolve, reject) {
+      var fd = new FormData(form);
+      fd.set("image", file, file.name || "image");
+      if (format) fd.set("format", format);
+      statusEl.textContent = "Rendering…";
+      fetch("/render", { method: "POST", body: fd })
+        .then(function (resp) {
+          return resp.json().catch(function () {
+            return { ok: false, error: "server returned a non-JSON response" };
+          }).then(function (data) {
+            if (!resp.ok || !data.ok) {
+              statusEl.textContent = "";
+              reject(new Error(data.error || ("HTTP " + resp.status)));
+              return;
+            }
+            statusEl.textContent = "";
+            resolve(data);
+          });
+        })
+        .catch(reject);
+    });
+  }
+
+  function ensureRendered(format) {
+    return new Promise(function (resolve, reject) {
+      if (rendered[format]) { resolve(rendered[format]); return; }
+      requestRender(format).then(function (data) {
+        rendered[format] = data;
+        resolve(data);
+      }, reject);
+    });
+  }
+
+  function describeParams() {
+    var mode = form.querySelector('input[name="mode"]:checked');
+    var dither = form.querySelector('select[name="dither"]').value;
+    var background = form.querySelector('select[name="background"]').value;
+    return [mode ? mode.value : "ramp", dither + " dither", background].join(" · ");
+  }
+
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     clearError();
-    resultWrap.hidden = true;
     if (!file) { showError("Choose or drop an image first."); return; }
-    statusEl.textContent = "Rendering\u2026";
-    var fd = new FormData(form);
-    fd.set("image", file, file.name || "image");
-    fetch("/render", { method: "POST", body: fd })
-      .then(function (resp) {
-        return resp.json().catch(function () {
-          return { ok: false, error: "server returned a non-JSON response" };
-        }).then(function (data) {
-          if (!resp.ok || !data.ok) {
-            showError(data.error || ("HTTP " + resp.status));
-            statusEl.textContent = "";
-            return;
-          }
-          last = data;
-          statusEl.textContent = "";
-          if (data.format === "html") {
-            resultFrame.srcdoc = data.output;
-            resultFrame.hidden = false;
-            resultPre.hidden = true;
-          } else {
-            resultPre.textContent = data.preview;
-            resultPre.hidden = false;
-            resultFrame.hidden = true;
-          }
-          resultWrap.hidden = false;
-        });
-      })
-      .catch(function (err) {
-        showError("Request failed: " + err.message);
-        statusEl.textContent = "";
-      });
-  });
-
-  copyBtn.addEventListener("click", function () {
-    if (!last) return;
-    var done = function () {
-      copyBtn.textContent = "Copied";
-      setTimeout(function () { copyBtn.textContent = "Copy"; }, 1200);
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(last.output).then(done, function () { fallbackCopy(last.output); done(); });
-    } else {
-      fallbackCopy(last.output); done();
-    }
+    requestRender(null).then(function (data) {
+      last = data;
+      rendered = {};
+      rendered[data.format] = data;
+      stageFile.textContent = file.name;
+      stageParams.textContent = describeParams();
+      stagePlaceholder.hidden = true;
+      stageMeta.hidden = false;
+      stageBody.hidden = false;
+      stageActions.hidden = false;
+      if (data.format === "html") {
+        resultFrame.srcdoc = data.output;
+        resultFrame.hidden = false;
+        resultPre.hidden = true;
+      } else {
+        resultPre.textContent = data.preview;
+        resultPre.hidden = false;
+        resultFrame.hidden = true;
+      }
+      closeSheet();
+    }, function (err) {
+      showError(err.message);
+    });
   });
 
   function fallbackCopy(text) {
@@ -795,18 +1042,43 @@ Uploads are processed in memory on the server — nothing is written to disk or 
     document.body.removeChild(ta);
   }
 
-  downloadBtn.addEventListener("click", function () {
+  function copyText(text) {
+    var done = function () {
+      copyBtn.textContent = "Copied";
+      setTimeout(function () { copyBtn.textContent = "Copy text"; }, 1200);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+    } else {
+      fallbackCopy(text); done();
+    }
+  }
+
+  copyBtn.addEventListener("click", function () {
     if (!last) return;
-    var blob = new Blob([last.output], { type: last.mime + ";charset=utf-8" });
+    copyText(last.preview);
+  });
+
+  function downloadBlob(data) {
+    var blob = new Blob([data.output], { type: data.mime + ";charset=utf-8" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     a.href = url;
-    a.download = last.filename;
+    a.download = data.filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-  });
+  }
+
+  function downloadAs(format) {
+    if (!file) { showError("Choose or drop an image first."); return; }
+    ensureRendered(format).then(downloadBlob, function (err) { showError(err.message); });
+  }
+
+  downloadTxtBtn.addEventListener("click", function () { downloadAs("text"); });
+  downloadHtmlBtn.addEventListener("click", function () { downloadAs("html"); });
+  downloadAnsBtn.addEventListener("click", function () { downloadAs("ansi"); });
 })();
 </script>
 </body>
