@@ -221,7 +221,38 @@ tests/          behaviour, render, web and quality suites plus fixtures
 qual/           metric runner, report-methodology cross-check, figures, results
 ```
 
-## Run the web app (Docker)
+## Running it on a host
+
+Build and start the web app with Docker Compose:
+
+```console
+$ docker compose up --build -d
+```
+
+The service listens on port **8080** inside the container, mapped to host port 8080 by `docker-compose.yml`. Check that it is running:
+
+```console
+$ curl -s http://localhost:8080/healthz
+ok
+```
+
+If the service is reachable by others on a network, put it behind a reverse proxy
+(nginx, Caddy, Traefik).  Don't expose the container port directly.
+
+To update after a code change:
+
+```console
+$ git pull
+$ docker compose up --build -d
+```
+
+To stop:
+
+```console
+$ docker compose down
+```
+
+### Configuration
 
 `ascii_art.web` puts a browser interface on the renderer: upload an image,
 set the same parameters the CLI takes (same names and defaults), render, then
@@ -229,21 +260,6 @@ copy or download the result.  Uploads are decoded and rendered in memory —
 nothing is written to disk or sent anywhere — and the request body is
 size-capped.  For a local (non-Docker) run, use `python -m ascii_art.web` or
 the installed `ascii-art-web` console script.
-
-Build and start:
-
-```console
-$ docker compose up --build -d
-```
-
-Open http://localhost:8080.  The service listens on port **8080** inside the
-container, mapped to host port 8080 by `docker-compose.yml`.
-
-Stop it:
-
-```console
-$ docker compose down
-```
 
 Without compose:
 
@@ -279,6 +295,10 @@ The image runs as an unprivileged user (`ascii`, uid 10001), builds from
   size and no container build/run transcript to report.  `docker compose config`
   parses cleanly, but the `Dockerfile` and `docker-compose.yml` have not been
   exercised against a live daemon on this machine.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
 
 ## Not in this version
 
