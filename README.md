@@ -46,6 +46,26 @@ Or without installing, from a checkout:
 $ .venv/bin/python -m ascii_art --help
 ```
 
+### With Docker
+
+A pre-built image is published to GitHub Container Registry.  No local clone
+or build is needed.
+
+```console
+$ docker pull ghcr.io/m3ssage/ascii-art:latest
+$ docker run --rm -p 8080:8080 ghcr.io/m3ssage/ascii-art
+```
+
+| tag | when | use case |
+|---|---|---|
+| `latest` | latest stable version | recommended for general use |
+| `X.Y.Z` | a specific version tag | pinning to a known release |
+| `edge` | every commit on `main` | testing the latest changes |
+| `<sha>` | a specific commit | debugging against a known state |
+
+Use an `X.Y.Z` version tag or `latest` for a stable install.  `edge` moves
+with every push to `main` and may include unreleased work-in-progress.
+
 ## Use
 
 ```console
