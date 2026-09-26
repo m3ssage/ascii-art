@@ -415,3 +415,68 @@ def test_get_render_is_method_not_allowed(server) -> None:
     assert headers.get("allow") == "POST"
     data = json.loads(raw)
     assert data["ok"] is False
+
+
+# ---------------------------------------------------------------------------
+# Static asset routes (favicon, app icons, manifest)
+
+
+@pytest.mark.parametrize(
+    "path,expected_type",
+    [
+        ("/favicon.ico", "image/x-icon"),
+        ("/favicon-16x16.png", "image/png"),
+        ("/favicon-32x32.png", "image/png"),
+        ("/apple-touch-icon.png", "image/png"),
+        ("/android-chrome-192x192.png", "image/png"),
+        ("/android-chrome-512x512.png", "image/png"),
+        ("/site.webmanifest", "application/manifest+json"),
+    ],
+)
+def test_static_asset_is_served(server, path, expected_type) -> None:
+    status, headers, body = _request(server.server_port, "GET", path)
+    assert status == 200
+    ct = headers.get("content-type", "")
+    assert ct.startswith(expected_type), f"{path}: expected {expected_type}, got {ct}"
+    assert len(body) > 0
+    assert int(headers.get("content-length", "0")) == len(body)
+
+
+def test_manifest_is_valid_json_with_filled_fields(server) -> None:
+    status, _, body = _request(server.server_port, "GET", "/site.webmanifest")
+    assert status == 200
+    data = json.loads(body)
+    assert data["name"] == "ascii-art"
+    assert data["short_name"] == "ascii-art"
+    assert data["theme_color"] == "#171030"
+    assert data["background_color"] == "#171030"
+    assert len(data["icons"]) > 0
+    assert data["display"] == "standalone"
+
+
+class _HeadLinks(HTMLParser):
+    """Collect ``<link>`` tags from a served HTML page."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.links: list = []
+
+    def handle_starttag(self, tag, attrs) -> None:
+        if tag == "link":
+            self.links.append(dict(attrs))
+
+
+def test_page_contains_icon_and_manifest_links(server) -> None:
+    status, _, body = _request(server.server_port, "GET", "/")
+    assert status == 200
+    parser = _HeadLinks()
+    parser.feed(body.decode("utf-8"))
+    link_hrefs = [l.get("href", "") for l in parser.links]
+    assert "/favicon.ico" in link_hrefs, "missing favicon link"
+    assert "/apple-touch-icon.png" in link_hrefs, "missing apple-touch-icon link"
+    assert "/site.webmanifest" in link_hrefs, "missing manifest link"
+    apple = [l for l in parser.links if l.get("rel") == "apple-touch-icon"]
+    assert len(apple) == 1
+    assert apple[0]["href"] == "/apple-touch-icon.png"
+    manifest = [l for l in parser.links if l.get("rel") == "manifest"]
+    assert len(manifest) == 1
