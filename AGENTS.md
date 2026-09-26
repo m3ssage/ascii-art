@@ -39,6 +39,11 @@ This file is the project's committed home for project-intrinsic agent knowledge:
   (`ASCII_ART_MAX_CELLS`, enforced on the resolved geometry before rendering).
   `Dockerfile`/`docker-compose.yml` package it; see the README's
   "Running it on a host" section.
+- Static assets (favicon, app icons, webmanifest) live in
+  `src/ascii_art/static/`, shipped via `[tool.setuptools.package-data]` in
+  `pyproject.toml`, and served by the web handler through
+  `importlib.resources`.  Adding a new static route means adding an entry to
+  `_STATIC_ROUTES` and, when needed, a `<link>` tag in `INDEX_HTML`.
 
 ## Sharp edges
 

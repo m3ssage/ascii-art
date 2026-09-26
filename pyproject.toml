@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ascii-art"
-version = "1.0.0"
+version = "1.0.1"
 description = "Script-safe image-to-ASCII renderer: measured ramps, honest alpha, first-class dithering."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,6 +17,9 @@ ascii-art-web = "ascii_art.web:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+ascii_art = ["static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

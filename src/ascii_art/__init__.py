@@ -10,7 +10,7 @@ The library is the product; the CLI is a thin shell over it.  Typical use:
 
 from __future__ import annotations
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 from .canvas import BRAILLE_BLANK, Canvas, Cell, has_ink
 from .errors import AsciiArtError, InputError, UsageError

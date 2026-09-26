@@ -21,6 +21,7 @@ from email.parser import BytesParser
 from email.policy import default as email_default
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from importlib.resources import files as _resource_files
 from typing import Dict, Optional, Tuple
 from urllib.parse import urlparse
 
@@ -48,6 +49,19 @@ DEFAULT_MAX_PIXELS = 40_000_000  # 40 megapixels after decode
 DEFAULT_MAX_CELLS = 4_000_000  # cells in the output grid
 
 _PROG = "ascii-art-web"
+
+# Static asset routes served from ``ascii_art/static/``.
+# Each entry maps an HTTP path to a (filename, media-type) pair.
+_STATIC_DIR = _resource_files("ascii_art").joinpath("static")
+_STATIC_ROUTES: Dict[str, Tuple[str, str]] = {
+    "/favicon.ico": ("favicon.ico", "image/x-icon"),
+    "/favicon-16x16.png": ("favicon-16x16.png", "image/png"),
+    "/favicon-32x32.png": ("favicon-32x32.png", "image/png"),
+    "/apple-touch-icon.png": ("apple-touch-icon.png", "image/png"),
+    "/android-chrome-192x192.png": ("android-chrome-192x192.png", "image/png"),
+    "/android-chrome-512x512.png": ("android-chrome-512x512.png", "image/png"),
+    "/site.webmanifest": ("site.webmanifest", "application/manifest+json"),
+}
 
 
 class _HttpError(Exception):
@@ -334,8 +348,16 @@ class WebHandler(BaseHTTPRequestHandler):
             )
         elif path == "/healthz":
             self._send_bytes(HTTPStatus.OK, "text/plain; charset=utf-8", b"ok\n")
-        elif path == "/favicon.ico":
-            self._send_bytes(HTTPStatus.NO_CONTENT, "image/x-icon", b"")
+        elif path in _STATIC_ROUTES:
+            filename, content_type = _STATIC_ROUTES[path]
+            try:
+                body = (_STATIC_DIR / filename).read_bytes()
+            except (FileNotFoundError, OSError):
+                self._send_json(
+                    HTTPStatus.NOT_FOUND, {"ok": False, "error": "not found"}
+                )
+                return
+            self._send_bytes(HTTPStatus.OK, content_type, body, cache_control="public, max-age=86400")
         elif path == "/render":
             self._send_json(
                 HTTPStatus.METHOD_NOT_ALLOWED,
@@ -415,12 +437,13 @@ class WebHandler(BaseHTTPRequestHandler):
         content_type: str,
         body: bytes,
         extra_headers: Optional[Dict[str, str]] = None,
+        cache_control: str = "no-store",
     ) -> None:
         try:
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
+            self.send_header("Cache-Control", cache_control)
             for key, value in (extra_headers or {}).items():
                 self.send_header(key, value)
             self.end_headers()
@@ -523,6 +546,11 @@ INDEX_HTML = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ascii-art</title>
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
 <style>
   :root {
     --bg-0: #171030;

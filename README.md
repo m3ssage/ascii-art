@@ -235,6 +235,7 @@ src/ascii_art/
   loader.py     paths, stdin, EXIF orientation, format reporting
   output.py     text, ANSI, HTML
   web.py        browser front end (HTTP) over the renderer
+  static/       favicon, app icons and webmanifest served by web.py
   quality.py    the section 7.1 metric
   fonts.py      monospace font discovery and ink-coverage measurement
 tests/          behaviour, render, web and quality suites plus fixtures
