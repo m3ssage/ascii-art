@@ -76,6 +76,16 @@ This file is the project's committed home for project-intrinsic agent knowledge:
   be reproducible with `qual/metric.py` and eyeballed once with
   `qual/figures.py`.
 
+## GHCR publish
+
+- The Docker image is published to `ghcr.io/m3ssage/ascii-art` from
+  `.github/workflows/docker-publish.yml`.  It runs on version tags and pushes
+  to `main`, building `linux/amd64` + `linux/arm64` via buildx, and never runs
+  on PRs.  Tag scheme: a `vX.Y.Z` tag produces `X.Y.Z` + `latest`; the default
+  branch produces the commit SHA + `edge`.  The package is public because the
+  repository is public, so `docker pull ghcr.io/m3ssage/ascii-art:latest`
+  works without authentication.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.
