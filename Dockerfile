@@ -4,7 +4,7 @@
 # Build stage: install the package into a throwaway venv.  Build tooling
 # (setuptools, pip's isolated build env) stays in this stage.
 # ---------------------------------------------------------------------------
-FROM python:3.12-slim AS build
+FROM python:3.13-slim AS build
 
 WORKDIR /build
 
@@ -17,7 +17,7 @@ RUN python -m venv /venv \
 # ---------------------------------------------------------------------------
 # Final stage: slim runtime, no compiler, no build tooling, runs as nobody.
 # ---------------------------------------------------------------------------
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 # A dedicated unprivileged user; the service never runs as root.
 RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin ascii

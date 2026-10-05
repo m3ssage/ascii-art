@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ascii-art"
-version = "1.0.1"
+version = "1.0.2"
 description = "Script-safe image-to-ASCII renderer: measured ramps, honest alpha, first-class dithering."
 readme = "README.md"
 requires-python = ">=3.10"
