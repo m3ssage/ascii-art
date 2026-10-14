@@ -131,8 +131,9 @@ $ .venv/bin/ascii-art examples/sunflower.jpg --width 60 --chars " .:-=+*#%@"
 
 Rerun that command against the committed file to reproduce the block above.
 The ramp was measured with JetBrainsMono Nerd Font, so another installed
-monospace font can put different glyphs in the cells. The crop is baked into
-`examples/sunflower.jpg`, because the tool has no crop flag.
+monospace font can put different glyphs in the cells. The framing is baked into
+`examples/sunflower.jpg` so the block above reproduces byte for byte; `--crop`
+would not change it, because a photograph has no flat margin to find.
 Photo: Pexels, photo 31284696 (pexels.com) — free to use and redistribute.
 
 ## The option surface
@@ -144,7 +145,7 @@ Photo: Pexels, photo 31284696 (pexels.com) — free to use and redistribute.
 | tone | `--color none\|2\|8\|16\|256\|truecolor\|auto`, `--dither none\|ordered\|diffusion\|noise`, `--seed`, `--background dark\|light\|auto`, `--invert`, `--fg-only` |
 | alpha | `--alpha transparent\|composite`, `--alpha-bg`, `--alpha-threshold` |
 | geometry | `--width`, `--height`, `--size WxH`, `--scale N\|max`, `--fit`, `--stretch`, `--font-ratio W/H` |
-| filters | `--brightness`, `--contrast`, `--gamma`, `--rotate`, `--flip-x`, `--flip-y` |
+| filters | `--crop`, `--brightness`, `--contrast`, `--gamma`, `--rotate`, `--flip-x`, `--flip-y` |
 | output | `--output FILE`, `--format text\|ansi\|html`, `--polite` |
 
 `--help` documents each one, including the mode table and the exit codes.
@@ -186,6 +187,15 @@ Photo: Pexels, photo 31284696 (pexels.com) — free to use and redistribute.
 * `--font-ratio` (default `1/2`) is the aspect correction. It is a parameter
   because a terminal cell is about twice as tall as it is wide, and hard-coding
   that is what makes circles round in some tools and squashed in others.
+* `--crop` is a source-side step, not a mode and not a post-process: the flat
+  margin goes away and the subject is then sized into the grid you asked for, so
+  the same picture gets bigger instead of merely losing rows. The margin is
+  measured, not assumed: a really transparent margin uses the alpha channel and
+  the same `--alpha-threshold` the renderer inks with; otherwise each border is
+  sampled for its own colour and a row or column is dropped only while it is
+  entirely that colour. An image with no flat margin — a photo, a gradient, a
+  textured edge — is returned unchanged with a warning instead of cropped to
+  something surprising, and a flat image is never cropped to nothing.
 * Output is deterministic. `--dither noise` is only random with `--seed`, and
   even then it is reproducible from the seed.
 
@@ -193,7 +203,7 @@ Photo: Pexels, photo 31284696 (pexels.com) — free to use and redistribute.
 
 ```console
 $ .venv/bin/pip install -e . pytest
-$ .venv/bin/python -m pytest                  # behaviour, render, web and quality suites
+$ .venv/bin/python -m pytest                  # behaviour, render, crop, web and quality suites
 $ .venv/bin/python -m pytest -m quality       # just the section 6.3 regression suite
 ```
 
@@ -231,6 +241,7 @@ src/ascii_art/
   dither.py     one quantiser, four dither modes, used by every mode
   palette.py    ANSI/xterm palettes, colour quantisation, depth resolution
   filters.py    the six pre-processing filters
+  crop.py       the flat-margin crop (--crop), before the filters
   geometry.py   sizing and the aspect correction
   loader.py     paths, stdin, EXIF orientation, format reporting
   output.py     text, ANSI, HTML
@@ -238,7 +249,7 @@ src/ascii_art/
   static/       favicon, app icons and webmanifest served by web.py
   quality.py    the section 7.1 metric
   fonts.py      monospace font discovery and ink-coverage measurement
-tests/          behaviour, render, web and quality suites plus fixtures
+tests/          behaviour, render, crop, web and quality suites plus fixtures
 qual/           metric runner, report-methodology cross-check, figures, results
 ```
 
@@ -275,12 +286,26 @@ $ docker compose down
 
 ### The web app
 
-`ascii_art.web` puts a browser interface on the renderer: upload an image,
-set the same parameters the CLI takes (same names and defaults), render, then
-copy or download the result.  Uploads are decoded and rendered in memory —
-nothing is written to disk or sent anywhere — and the request body is
-size-capped.  For a local (non-Docker) run, use `python -m ascii_art.web` or
-the installed `ascii-art-web` console script.
+`ascii_art.web` puts a browser interface on the renderer: upload an image, set
+the same parameters the CLI takes (same names; the one deliberate difference in
+defaults is noted below), render, then copy or download the result.  Uploads are
+decoded and rendered in memory — nothing is written to disk or sent anywhere —
+and the request body is size-capped.  For a local (non-Docker) run, use
+`python -m ascii_art.web` or the installed `ascii-art-web` console script.
+
+Three things about the browser interface are worth naming:
+
+* **The mode tiles preselect `braille`** where the CLI defaults to `ramp`.  Both
+  defaults are asserted in `tests/test_web.py`, so neither can drift unnoticed.
+* **Clicking a mode tile renders again immediately**, without the Render button —
+  choosing a mode is a decision about the picture itself.  The tiles are the only
+  control wired that way: the sliders and selects stay passive, so a stray drag
+  cannot fire one request per pixel, and a tile click with no image chosen sends
+  no request at all.
+* **`crop` sits under *advanced*** and is the same `--crop` the CLI has.  What
+  the renderer wants to warn about (a crop that found no flat margin) is shown
+  under the stage; the CLI prints those warnings on stderr instead.  The footer
+  shows the package version, substituted at serve time.
 
 Without compose:
 

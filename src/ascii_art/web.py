@@ -27,8 +27,9 @@ from urllib.parse import urlparse
 
 from PIL import Image
 
+from . import __version__
 from .errors import AsciiArtError, UsageError
-from .filters import FilterSpec, apply_filters, validate as validate_filters
+from .filters import FilterSpec, validate as validate_filters
 from .geometry import compute_geometry, parse_font_ratio
 from .loader import load_image
 from .output import FORMATS, format_canvas, to_text
@@ -39,6 +40,7 @@ from .render import (
     COLOR_DEPTHS,
     MODES,
     RenderOptions,
+    preprocess,
     render,
 )
 
@@ -49,6 +51,11 @@ DEFAULT_MAX_PIXELS = 40_000_000  # 40 megapixels after decode
 DEFAULT_MAX_CELLS = 4_000_000  # cells in the output grid
 
 _PROG = "ascii-art-web"
+
+#: Replaced with ``ascii_art.__version__`` when the page is served; see
+#: :func:`index_page`.  The version is not baked into the source, so it cannot
+#: drift from the package it is reporting.
+_VERSION_PLACEHOLDER = "__VERSION__"
 
 # Static asset routes served from ``ascii_art/static/``.
 # Each entry maps an HTTP path to a (filename, media-type) pair.
@@ -155,6 +162,7 @@ def build_options(
     scale = _text(fields, "scale").strip() or None
     fit = _bool(fields, "fit")
     stretch = _bool(fields, "stretch")
+    crop = _bool(fields, "crop")
     font_ratio = parse_font_ratio(_text(fields, "font_ratio").strip() or "1/2")
     brightness = _float(fields, "brightness", 1.0)
     contrast = _float(fields, "contrast", 1.0)
@@ -192,6 +200,7 @@ def build_options(
         alpha_bg=alpha_bg,
         alpha_threshold=alpha_threshold,
         edge_threshold=edge_threshold,
+        crop=crop,
         width=width,
         height=height,
         size=size,
@@ -214,12 +223,17 @@ def build_options(
 def _check_cell_budget(
     image: Image.Image, options: RenderOptions, max_cells: int
 ) -> None:
-    """Refuse an output grid larger than ``max_cells`` before allocating it."""
+    """Refuse an output grid larger than ``max_cells`` before allocating it.
 
-    filtered = apply_filters(image, options.filters)
+    The grid is computed from the *preprocessed* image -- crop and filters
+    included -- so the budget is checked against the same source the renderer
+    will use.  ``render`` walks the identical path.
+    """
+
+    prepared, _ = preprocess(image, options)
     geometry = compute_geometry(
-        filtered.width,
-        filtered.height,
+        prepared.width,
+        prepared.height,
         width=options.width,
         height=options.height,
         size=options.size,
@@ -274,7 +288,7 @@ def _output_meta(fmt: str) -> Tuple[str, str]:
 
 def render_payload(
     payload: bytes, fields: Dict[str, str], *, max_pixels: int, max_cells: int
-) -> Dict[str, str]:
+) -> Dict[str, object]:
     """Render uploaded bytes and return the JSON-serialisable result."""
 
     image = _decode_upload(payload, max_pixels)
@@ -290,6 +304,9 @@ def render_payload(
         "format": fmt,
         "mime": mime,
         "filename": filename,
+        # A warning is not a failure: the art below is still the answer, and the
+        # page shows the text next to it.  The CLI prints the same list on stderr.
+        "warnings": list(canvas.warnings),
     }
 
 
@@ -344,7 +361,7 @@ class WebHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):
             self._send_bytes(
-                HTTPStatus.OK, "text/html; charset=utf-8", INDEX_HTML.encode("utf-8")
+                HTTPStatus.OK, "text/html; charset=utf-8", index_page()
             )
         elif path == "/healthz":
             self._send_bytes(HTTPStatus.OK, "text/plain; charset=utf-8", b"ok\n")
@@ -495,6 +512,16 @@ def make_server(
         max_pixels=max_pixels,
         max_cells=max_cells,
     )
+
+
+def index_page() -> bytes:
+    """The interface, with the package's own version stamped into the footer.
+
+    The version is substituted at serve time rather than hardcoded in the page,
+    so it can never drift from ``ascii_art.__version__``.
+    """
+
+    return INDEX_HTML.replace(_VERSION_PLACEHOLDER, __version__).encode("utf-8")
 
 
 def _env_int(name: str, default: int) -> int:
@@ -674,6 +701,8 @@ INDEX_HTML = r"""<!doctype html>
   .stage-actions .hint { margin-left: auto; align-self: center; font-size: .72rem; color: var(--ink-dim); }
 
   #status { color: var(--ink-dim); min-height: 1.2em; margin-top: .5rem; font-size: .8rem; }
+  .foot { margin: 1.5rem 0 0; text-align: center; font-size: .72rem; color: var(--ink-dim); letter-spacing: .02em; }
+  .foot .ver { font-family: ui-monospace, "DejaVu Sans Mono", "Noto Sans Mono", Menlo, Consolas, monospace; }
   .error { color: #ffb3c0; border: 1px solid var(--pink); border-radius: .6rem; padding: .5rem .8rem; margin: .5rem 0; white-space: pre-wrap; font-size: .85rem; }
 
   /* ---- bottom sheet (narrow) ---- */
@@ -728,16 +757,16 @@ INDEX_HTML = r"""<!doctype html>
       <legend class="sr-only">render mode</legend>
       <div class="mode-grid">
         <label class="mode-tile">
-          <input type="radio" name="mode" value="ramp" checked>
+          <input type="radio" name="mode" value="ramp">
           <span class="glyph" aria-hidden="true">@%#*+=</span>
           <span class="name">ramp</span>
-          <span class="desc">photos · the default</span>
+          <span class="desc">photos · tone ramp</span>
         </label>
         <label class="mode-tile">
-          <input type="radio" name="mode" value="braille">
+          <input type="radio" name="mode" value="braille" checked>
           <span class="glyph" aria-hidden="true">⠿⠺⠖⠄</span>
           <span class="name">braille</span>
-          <span class="desc">4× detail · square cells</span>
+          <span class="desc">the default · 4× detail</span>
         </label>
         <label class="mode-tile">
           <input type="radio" name="mode" value="block">
@@ -810,7 +839,7 @@ INDEX_HTML = r"""<!doctype html>
       </div>
 
       <details class="advanced" id="advanced">
-        <summary>advanced <span class="hint">chars · seed · ramp order · alpha · threshold · fit/stretch · font-ratio · rotate · flips · format</span></summary>
+        <summary>advanced <span class="hint">crop · chars · seed · ramp order · alpha · threshold · fit/stretch · font-ratio · rotate · flips · format</span></summary>
         <div class="advanced-body">
           <label class="ctl-label"><span>chars</span><input class="ctl" type="text" name="chars" placeholder="default measured ramp"></label>
           <label class="ctl-label"><span>seed</span><input class="ctl" type="number" name="seed" step="1" placeholder="none"></label>
@@ -840,6 +869,7 @@ INDEX_HTML = r"""<!doctype html>
             <option value="ansi">ansi</option>
             <option value="html">html</option>
           </select></label>
+          <label class="check"><input type="checkbox" name="crop" value="on"><span>crop (remove the flat border)</span></label>
           <label class="check"><input type="checkbox" name="fit" value="on"><span>fit (preserve aspect)</span></label>
           <label class="check"><input type="checkbox" name="stretch" value="on"><span>stretch (fill exactly)</span></label>
           <label class="check"><input type="checkbox" name="flip_x" value="on"><span>flip-x</span></label>
@@ -876,6 +906,8 @@ INDEX_HTML = r"""<!doctype html>
     <div id="status"></div>
     <div id="error" class="error" hidden></div>
   </form>
+
+  <footer class="foot">ascii-art <span class="ver" id="version">__VERSION__</span></footer>
 </div>
 
 <button type="button" id="sheet-toggle">tune controls</button>
@@ -1009,13 +1041,13 @@ INDEX_HTML = r"""<!doctype html>
     var mode = form.querySelector('input[name="mode"]:checked');
     var dither = form.querySelector('select[name="dither"]').value;
     var background = form.querySelector('select[name="background"]').value;
-    return [mode ? mode.value : "ramp", dither + " dither", background].join(" · ");
+    var parts = [mode ? mode.value : "braille", dither + " dither", background];
+    if (form.querySelector('input[name="crop"]').checked) parts.push("cropped");
+    return parts.join(" · ");
   }
 
-  form.addEventListener("submit", function (e) {
-    e.preventDefault();
+  function renderNow() {
     clearError();
-    if (!file) { showError("Choose or drop an image first."); return; }
     requestRender(null).then(function (data) {
       last = data;
       stageFile.textContent = file.name;
@@ -1033,9 +1065,26 @@ INDEX_HTML = r"""<!doctype html>
         resultPre.hidden = false;
         resultFrame.hidden = true;
       }
+      statusEl.textContent = (data.warnings || []).join(" ");
       closeSheet();
     }, function (err) {
       showError(err.message);
+    });
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (!file) { showError("Choose or drop an image first."); return; }
+    renderNow();
+  });
+
+  // The mode tiles are the one control that re-renders on click: picking a mode
+  // is a decision about the picture itself.  The sliders and selects stay
+  // passive -- rendering on every slider step would hammer the server for a
+  // picture nobody asked to see yet.  No image chosen means no request.
+  form.querySelectorAll('input[name="mode"]').forEach(function (radio) {
+    radio.addEventListener("change", function () {
+      if (file) renderNow();
     });
   });
 

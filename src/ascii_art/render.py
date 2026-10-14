@@ -19,6 +19,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from PIL import Image
 
 from .canvas import RGB, Canvas, average_rgb, blank_canvas, has_ink
+from .crop import apply_crop
 from .dither import DITHER_MODES, quantize
 from .errors import UsageError
 from .filters import FilterSpec, apply_filters
@@ -98,6 +99,10 @@ class RenderOptions:
     alpha_threshold: int = 128
     edge_threshold: float = 0.15
 
+    #: ``--crop``: drop the source image's flat margin before anything else, so
+    #: the subject fills the grid the caller asked for instead of sitting in it.
+    crop: bool = False
+
     width: Optional[int] = None
     height: Optional[int] = None
     size: Optional[str] = None
@@ -171,6 +176,27 @@ class _Context:
     gh: int
 
 
+def preprocess(
+    image: Image.Image, options: RenderOptions
+) -> Tuple[Image.Image, List[str]]:
+    """The source-side pipeline every entry point shares: crop, then filters.
+
+    Cropping changes the image's size, so the geometry -- and with it the cell
+    budget the web front end checks *before* rendering -- depends on this step.
+    ``render`` and ``web._check_cell_budget`` both come through here so they
+    cannot disagree about the grid.  Warnings come back for the caller to
+    report; the library never prints.
+    """
+
+    warnings: List[str] = []
+    if options.crop:
+        result = apply_crop(image, alpha_threshold=options.alpha_threshold)
+        image = result.image
+        if result.warning:
+            warnings.append(result.warning)
+    return apply_filters(image, options.filters), warnings
+
+
 def render(
     image: Image.Image,
     options: RenderOptions,
@@ -189,7 +215,7 @@ def render(
     if depth == "auto":
         depth = "none"
 
-    image = apply_filters(image, options.filters)
+    image, warnings = preprocess(image, options)
 
     geometry = compute_geometry(
         image.width,
@@ -252,7 +278,7 @@ def render(
         return 1.0 - value if light else value
 
     canvas = blank_canvas(cols, rows, mode=options.mode, color_depth=depth,
-                          background=background)
+                          background=background, warnings=warnings)
     cell_raw = composited.resize((cols, rows), Image.BOX).tobytes()
 
     ctx = _Context(
@@ -663,6 +689,7 @@ __all__ = [
     "MODES",
     "MODE_SUBSAMPLES",
     "RenderOptions",
+    "preprocess",
     "render",
     "resolve_background",
 ]
