@@ -42,9 +42,12 @@ This file is the project's committed home for project-intrinsic agent knowledge:
   stdlib-only (`http.server`), never writes uploads to disk, and caps body size
   (`ASCII_ART_MAX_BODY_BYTES`), decoded pixels (`ASCII_ART_MAX_PIXELS`) and the
   output grid (`ASCII_ART_MAX_CELLS`, enforced on the resolved geometry before
-  rendering).  The *page* preselects `braille` and re-renders on a mode-tile
-  click; the *server* keeps the CLI defaults, and `tests/test_web.py` asserts
-  both halves so the divergence is deliberate rather than drift.
+  rendering).  The *page* preselects `braille` and re-renders whenever any
+  control changes — tiles, selects, checkboxes and number/text fields at once,
+  the tone sliders debounced, and never without an image — so the Render button
+  only starts the first render; the *server* keeps the CLI defaults, and
+  `tests/test_web.py` asserts both halves so the divergence is deliberate rather
+  than drift.
   `Dockerfile`/`docker-compose.yml` package it; see the README's
   "Running it on a host" section.
 - Static assets (favicon, app icons, webmanifest) live in
