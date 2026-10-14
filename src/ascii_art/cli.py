@@ -252,7 +252,15 @@ def build_parser() -> argparse.ArgumentParser:
     pre.add_argument("--brightness", type=float, default=1.0, metavar="F", help="1.0 is unchanged")
     pre.add_argument("--contrast", type=float, default=1.0, metavar="F", help="1.0 is unchanged")
     pre.add_argument("--gamma", type=float, default=1.0, metavar="F", help="1.0 is unchanged")
-    pre.add_argument("--rotate", type=int, choices=(90, 180, 270), default=0, metavar="DEG")
+    pre.add_argument(
+        "--rotate",
+        type=int,
+        default=0,
+        metavar="DEG",
+        help="rotate clockwise by DEG degrees (0 to 360).  Only multiples of 90 "
+        "are exact; other angles are resampled and gain corners in the fill "
+        "colour -- transparent for RGBA, black for RGB (default: 0)",
+    )
     pre.add_argument("--flip-x", action="store_true", help="mirror horizontally")
     pre.add_argument("--flip-y", action="store_true", help="mirror vertically")
     pre.add_argument(

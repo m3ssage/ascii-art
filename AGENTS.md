@@ -85,6 +85,12 @@ This file is the project's committed home for project-intrinsic agent knowledge:
   with a warning on `Canvas.warnings`.  The library never prints: the CLI writes
   those warnings to stderr (stdout stays pure art) and the web app returns them
   in its JSON and shows them under the stage.
+- **Rotation is free-form; the exact turns are the four multiples of 90.**  The
+  resample (BICUBIC) is only reached by the free angles — Pillow transposes for
+  0/90/180/270 whatever the filter is — so those stay pixel-for-pixel and no
+  baseline moves.  A free angle expands the canvas and leaves the fill colour in
+  the corners (transparent for RGBA, black for RGB), which on a dark background
+  is no ink.
 - **A colour depth must never change the glyph grid** — it may only add escapes.
   `_attach_cell_colors`/`_attach_two_colour_grids` set colour and nothing else;
   `--color 2` is the terminal background plus one forced ink colour, with tone

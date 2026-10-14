@@ -664,6 +664,7 @@ INDEX_HTML = r"""<!doctype html>
   select.ctl { cursor: pointer; }
   input.ctl[type=number], input.ctl[type=text] { min-width: 0; }
   input[type=range] { width: 100%; accent-color: var(--pink); margin: 0; }
+  input[type=range]:disabled { opacity: .35; cursor: not-allowed; }
   .slider-row { display: flex; align-items: center; gap: .5rem; }
   .slider-row output { font-size: .72rem; font-variant-numeric: tabular-nums; opacity: .8; min-width: 2.4rem; text-align: right; }
   .span-3 { grid-column: span 3; }
@@ -677,6 +678,7 @@ INDEX_HTML = r"""<!doctype html>
   .advanced .hint { opacity: .55; }
   .advanced-body { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .75rem .85rem; padding: 0 .9rem .9rem; }
   .advanced-body .ctl-label, .advanced-body .check { grid-column: span 2; }
+  .advanced-body .wide { grid-column: span 4; }
   .check { display: flex; align-items: center; gap: .45rem; font-size: .8rem; min-width: 0; }
   .check input { width: auto; accent-color: var(--pink); margin: 0; }
   .check span { min-width: 0; }
@@ -834,7 +836,7 @@ INDEX_HTML = r"""<!doctype html>
         </label>
         <label class="ctl-label span-3">
           <span>width (cells)</span>
-          <input class="ctl" type="number" name="width" min="1" step="1" placeholder="80">
+          <span class="slider-row"><input type="range" id="width" name="width" min="10" max="300" step="1" value="80"><output for="width">80</output></span>
         </label>
       </div>
 
@@ -858,12 +860,9 @@ INDEX_HTML = r"""<!doctype html>
           <label class="ctl-label"><span>size (WxH)</span><input class="ctl" type="text" name="size" placeholder="80x40"></label>
           <label class="ctl-label"><span>scale (N|max)</span><input class="ctl" type="text" name="scale" placeholder="1"></label>
           <label class="ctl-label"><span>font ratio (W/H)</span><input class="ctl" type="text" name="font_ratio" value="1/2"></label>
-          <label class="ctl-label"><span>rotate</span><select class="ctl" name="rotate">
-            <option value="0" selected>0</option>
-            <option value="90">90</option>
-            <option value="180">180</option>
-            <option value="270">270</option>
-          </select></label>
+          <label class="ctl-label wide"><span>rotate</span>
+            <span class="slider-row"><input type="range" id="rotate" name="rotate" min="0" max="360" step="1" value="0"><output for="rotate">0</output></span>
+          </label>
           <label class="ctl-label"><span>format</span><select class="ctl" name="format" id="format">
             <option value="text" selected>text</option>
             <option value="ansi">ansi</option>
@@ -938,6 +937,8 @@ INDEX_HTML = r"""<!doctype html>
   var formatSel = form.querySelector('select[name="format"]');
   var halfRadio = form.querySelector('input[name="mode"][value="half"]');
   var rampRadio = form.querySelector('input[name="mode"][value="ramp"]');
+  var sizeInput = form.querySelector('input[name="size"]');
+  var widthSlider = document.getElementById("width");
 
   var file = null;
   var last = null;
@@ -997,6 +998,21 @@ INDEX_HTML = r"""<!doctype html>
   colorSel.addEventListener("change", syncHalf);
   formatSel.addEventListener("change", syncHalf);
   syncHalf();
+
+  // `size (WxH)` and `width` cannot both be submitted -- the geometry refuses
+  // that pair -- and a slider always submits a value, so a filled-in size wins
+  // and the slider goes inert (a disabled control is not submitted at all)
+  // until the field is cleared again.
+  function syncSize() {
+    var sized = sizeInput.value.trim() !== "";
+    widthSlider.disabled = sized;
+    widthSlider.closest("label").title = sized
+      ? "size (WxH) is set; clear it to use this slider"
+      : "";
+  }
+  sizeInput.addEventListener("input", syncSize);
+  sizeInput.addEventListener("change", syncSize);
+  syncSize();
 
   form.querySelectorAll('input[type="range"]').forEach(function (r) {
     var out = r.parentElement.querySelector("output");
