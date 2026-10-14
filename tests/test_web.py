@@ -555,12 +555,12 @@ def test_no_crop_means_no_warning(server) -> None:
     assert data["warnings"] == []
 
 
-def test_mode_tile_click_rerenders_without_the_button(server) -> None:
-    """The mode tiles re-render on click; the Render button stays for the rest.
+def test_every_control_rerenders_without_the_button(server) -> None:
+    """Every control re-renders the picture; Render is only the first render.
 
-    A browser cannot be driven from this suite, so this pins the wiring: the
-    mode radio group gets a change listener that calls the same render path the
-    submit button uses, and it fires only when an image is already chosen.
+    A browser cannot be driven from this suite, so this pins the wiring: all five
+    control families get listeners that route to the same render path the submit
+    button uses, the sliders are debounced, and nothing is sent without an image.
     """
 
     status, _, body = _request(server.server_port, "GET", "/")
@@ -568,12 +568,23 @@ def test_mode_tile_click_rerenders_without_the_button(server) -> None:
     html = body.decode("utf-8")
 
     assert "function renderNow()" in html
-    assert re.search(r"querySelectorAll\('input\[name=\"mode\"\]'\)", html), (
-        "the mode tiles must be wired to re-render"
+    assert "function scheduleRender(delay)" in html
+    assert re.search(r"scheduleRender\(250\)", html), "sliders must be debounced"
+    for selector, listener in (
+        (r"querySelectorAll\('input\[name=\"mode\"\]'\)", "radio.addEventListener"),
+        (r"querySelectorAll\(\"select\"\)", "select.addEventListener"),
+        (r'querySelectorAll\(\'input\[type="checkbox"\]\'\)', "box.addEventListener"),
+        (r'querySelectorAll\(\'input\[type="number"\], input\[type="text"\]\'\)',
+         "field.addEventListener"),
+        (r'querySelectorAll\(\'input\[type="range"\]\'\)', "slider.addEventListener"),
+    ):
+        assert re.search(selector, html), f"{selector} is not wired to re-render"
+        assert listener in html, f"{listener} missing"
+    assert re.search(r"if \(!file\) return;", html), (
+        "no image means no request"
     )
-    assert "radio.addEventListener(\"change\"" in html
-    assert re.search(r"if \(file\) renderNow\(\);", html), (
-        "a tile click without an image must not send a request"
+    assert re.search(r"form\.addEventListener\(\"submit\"", html), (
+        "the Render button must keep working for the first render"
     )
 
 

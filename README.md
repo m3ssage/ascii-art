@@ -297,11 +297,12 @@ Three things about the browser interface are worth naming:
 
 * **The mode tiles preselect `braille`** where the CLI defaults to `ramp`.  Both
   defaults are asserted in `tests/test_web.py`, so neither can drift unnoticed.
-* **Clicking a mode tile renders again immediately**, without the Render button —
-  choosing a mode is a decision about the picture itself.  The tiles are the only
-  control wired that way: the sliders and selects stay passive, so a stray drag
-  cannot fire one request per pixel, and a tile click with no image chosen sends
-  no request at all.
+* **Every control re-renders the picture as soon as it changes**, which is why
+  the Render button is only there to start the first render.  The mode tiles,
+  selects, checkboxes and number/text fields fire straight away (coalesced by a
+  short debounce); the brightness/contrast/gamma sliders wait 250 ms, because
+  dragging one otherwise fires one request per pixel.  With no image chosen
+  nothing is sent at all.
 * **`crop` sits under *advanced*** and is the same `--crop` the CLI has.  What
   the renderer wants to warn about (a crop that found no flat margin) is shown
   under the stage; the CLI prints those warnings on stderr instead.  The footer
