@@ -12,6 +12,8 @@ from __future__ import annotations
 import http.client
 import io
 import json
+import pathlib
+import re
 import socket
 import threading
 from decimal import Decimal, InvalidOperation
@@ -21,7 +23,9 @@ from typing import Dict, Optional, Tuple
 import pytest
 
 import fixtures
-from ascii_art.web import make_server
+from ascii_art import __version__
+from ascii_art.cli import build_parser
+from ascii_art.web import build_options, make_server
 
 
 def _png_bytes(size: int = 32) -> bytes:
@@ -198,7 +202,7 @@ def test_served_form_covers_the_cli_parameter_surface(server) -> None:
     expected = {
         "mode", "chars", "ramp", "edge_threshold", "color", "dither", "seed",
         "background", "invert", "fg_only", "alpha", "alpha_bg", "alpha_threshold",
-        "width", "height", "size", "scale", "fit", "stretch", "font_ratio",
+        "crop", "width", "height", "size", "scale", "fit", "stretch", "font_ratio",
         "brightness", "contrast", "gamma", "rotate", "flip_x", "flip_y",
         "format", "polite",
     }
@@ -223,13 +227,15 @@ class _RadioInputs(HTMLParser):
             self.radios.append(attributes)
 
 
-def test_mode_tiles_are_radios_with_the_cli_default(server) -> None:
+def test_mode_tiles_are_radios_preselecting_braille(server) -> None:
     """The five render modes are hero tiles that submit ``mode`` by value.
 
     The playground renders the mode axis as tile cards instead of a ``select``;
     they must still be a single radio group named ``mode`` whose values match
-    the CLI's modes and whose checked default is the CLI default (``ramp``), so
-    the selected tile is what actually reaches ``POST /render``.
+    the CLI's modes, so the selected tile is what actually reaches
+    ``POST /render``.  The web app preselects **braille** on purpose while the
+    CLI keeps ``ramp``; both halves are asserted here so the deliberate
+    divergence cannot drift in either direction unnoticed.
     """
 
     status, _, body = _request(server.server_port, "GET", "/")
@@ -239,7 +245,8 @@ def test_mode_tiles_are_radios_with_the_cli_default(server) -> None:
     modes = [r for r in parser.radios if r.get("name") == "mode"]
     assert {r.get("value") for r in modes} == {"ramp", "braille", "block", "half", "edges"}
     checked = [r.get("value") for r in modes if "checked" in r]
-    assert checked == ["ramp"]
+    assert checked == ["braille"]
+    assert build_parser().parse_args([]).mode == "ramp", "the CLI default is not the web default"
 
 
 def test_healthz(server) -> None:
@@ -480,3 +487,118 @@ def test_page_contains_icon_and_manifest_links(server) -> None:
     assert apple[0]["href"] == "/apple-touch-icon.png"
     manifest = [l for l in parser.links if l.get("rel") == "manifest"]
     assert len(manifest) == 1
+
+
+def _plate_png_bytes() -> bytes:
+    """A black plate with a white block: ``--crop`` removes the plate.
+
+    White ink is what a dark-background ramp draws, so the cropped render is a
+    full canvas and the uncropped one has blank rows where the plate is.
+    """
+
+    buf = io.BytesIO()
+    fixtures.plate(240, 160, 40, background=(0, 0, 0), ink=(255, 255, 255)).save(buf, "PNG")
+    return buf.getvalue()
+
+
+def _render(server, fields: Dict[str, str], image: bytes) -> dict:
+    body, content_type = multipart_body(fields, image=image)
+    status, _, raw = _request(
+        server.server_port, "POST", "/render", body=body,
+        headers={"Content-Type": content_type},
+    )
+    assert status == 200, raw
+    data = json.loads(raw.decode("utf-8"))
+    assert data["ok"] is True
+    return data
+
+
+def test_crop_option_reaches_render_options() -> None:
+    """The checkbox is the CLI flag: same name, same effect, same default."""
+
+    assert build_options({})[0].crop is False
+    assert build_options({"crop": "on"})[0].crop is True
+
+
+def test_crop_removes_the_plate_over_http(server) -> None:
+    """The option is not just parsed: it changes the grid the server renders."""
+
+    plain = _render(server, {"width": "20", "mode": "ramp"}, _plate_png_bytes())
+    cropped = _render(
+        server, {"width": "20", "mode": "ramp", "crop": "on"}, _plate_png_bytes()
+    )
+
+    plain_lines = plain["output"].splitlines()
+    cropped_lines = cropped["output"].splitlines()
+
+    # 240x160 minus a 40 px margin is 160x80, so the same 20 columns derive
+    # different row counts -- proof the crop reached the geometry, not just the
+    # option parser -- and the plate's blank rows are gone.
+    assert len(plain_lines) == 7 and len(cropped_lines) == 5
+    assert any(line.strip() == "" for line in plain_lines), "the plate renders blank"
+    assert not any(line.strip() == "" for line in cropped_lines), "the crop fills the frame"
+
+
+def test_a_crop_that_finds_nothing_is_reported_not_raised(server) -> None:
+    """A warning travels beside the art; the art is still served."""
+
+    data = _render(server, {"width": "20", "crop": "on"}, _png_bytes())
+
+    assert data["warnings"], "a crop with no flat border must say so"
+    assert "crop:" in data["warnings"][0]
+    assert data["output"].strip(), "the render still returns the art"
+
+
+def test_no_crop_means_no_warning(server) -> None:
+    data = _render(server, {"width": "20"}, _png_bytes())
+
+    assert data["warnings"] == []
+
+
+def test_mode_tile_click_rerenders_without_the_button(server) -> None:
+    """The mode tiles re-render on click; the Render button stays for the rest.
+
+    A browser cannot be driven from this suite, so this pins the wiring: the
+    mode radio group gets a change listener that calls the same render path the
+    submit button uses, and it fires only when an image is already chosen.
+    """
+
+    status, _, body = _request(server.server_port, "GET", "/")
+    assert status == 200
+    html = body.decode("utf-8")
+
+    assert "function renderNow()" in html
+    assert re.search(r"querySelectorAll\('input\[name=\"mode\"\]'\)", html), (
+        "the mode tiles must be wired to re-render"
+    )
+    assert "radio.addEventListener(\"change\"" in html
+    assert re.search(r"if \(file\) renderNow\(\);", html), (
+        "a tile click without an image must not send a request"
+    )
+
+
+def test_footer_reports_the_package_version(server) -> None:
+    """The version at the bottom is the package's, not a hardcoded string."""
+
+    status, _, body = _request(server.server_port, "GET", "/")
+    assert status == 200
+    html = body.decode("utf-8")
+
+    assert f'id="version">{__version__}<' in html
+    assert "__VERSION__" not in html, "the placeholder must never be served"
+
+
+def test_declared_and_package_versions_agree() -> None:
+    """A version nobody bumps is worse than no version at all.
+
+    This is the drift that had already happened in this repo (`pyproject.toml`
+    said 1.0.2 while the package reported 1.0.1); the footer makes it visible.
+    """
+
+    pyproject = (
+        pathlib.Path(__file__).resolve().parent.parent / "pyproject.toml"
+    ).read_text(encoding="utf-8")
+    match = re.search(r'^version = "([^"]+)"', pyproject, re.MULTILINE)
+
+    assert match, "pyproject.toml must declare a version"
+    assert match.group(1) == __version__

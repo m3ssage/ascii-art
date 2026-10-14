@@ -240,6 +240,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     pre = parser.add_argument_group("pre-processing")
+    pre.add_argument(
+        "--crop",
+        action="store_true",
+        help="crop the flat margin off the source before rendering, so the "
+        "subject fills the requested grid instead of sitting in it.  The margin "
+        "is found from the alpha channel when the image has real transparency, "
+        "otherwise from the colour of each border.  No flat margin means the "
+        "image is left alone, with a warning on stderr (default: off)",
+    )
     pre.add_argument("--brightness", type=float, default=1.0, metavar="F", help="1.0 is unchanged")
     pre.add_argument("--contrast", type=float, default=1.0, metavar="F", help="1.0 is unchanged")
     pre.add_argument("--gamma", type=float, default=1.0, metavar="F", help="1.0 is unchanged")
@@ -320,6 +329,7 @@ def _build_options(args: argparse.Namespace, depth: str) -> RenderOptions:
         alpha_bg=alpha_bg,
         alpha_threshold=args.alpha_threshold,
         edge_threshold=args.edge_threshold,
+        crop=args.crop,
         width=args.width,
         height=args.height,
         size=args.size,
@@ -343,6 +353,11 @@ def _render_inputs(
     for source in sources:
         image = load_image(source)
         canvas = render(image, options, color_depth=depth)
+        # A crop that could not do its job is not an error: the art is still the
+        # art.  Warnings go to stderr so a redirected stdout stays pure output.
+        for message in canvas.warnings:
+            label = "<stdin>" if source == "-" else source
+            sys.stderr.write(f"{PROG}: {label}: {message}\n")
         chunks.append(
             format_canvas(canvas, fmt, depth, fg_only=options.fg_only, polite=args.polite)
         )

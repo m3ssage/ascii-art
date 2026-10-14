@@ -36,6 +36,7 @@ REQUIRED_OPTIONS = [
     "--alpha",
     "--alpha-bg",
     "--alpha-threshold",
+    "--crop",
     "--width",
     "--height",
     "--size",
@@ -612,3 +613,64 @@ def test_tty_terminal_width_is_detected(paths):
     assert code == 0
     widths = {len(line) for line in out.decode().splitlines() if line.strip()}
     assert widths == {44}
+
+
+# ----------------------------------------------------------------------- crop
+
+
+def _inked(text: str) -> int:
+    """Glyph cells the renderer actually drew, across every line."""
+
+    return sum(1 for line in text.splitlines() for char in line if char != " ")
+
+
+def test_crop_gives_the_subject_more_of_the_grid(run, paths):
+    """Same width, same mode, more ink: the flat margin is gone."""
+
+    plain = run([str(paths["circle"]), "--width", "20"])
+    cropped = run([str(paths["circle"]), "--width", "20", "--crop"])
+
+    assert cropped.returncode == 0 and plain.returncode == 0
+    assert len(cropped.out.splitlines()) == len(plain.out.splitlines())
+    assert _inked(cropped.out) > _inked(plain.out)
+    assert cropped.err == "", "a crop that worked has nothing to say"
+
+
+def test_crop_without_a_flat_border_changes_nothing_and_warns(run, paths):
+    """The narrow-recovery promise: no margin found means no guessing."""
+
+    plain = run([str(paths["photo"]), "--width", "40"])
+    cropped = run([str(paths["photo"]), "--width", "40", "--crop"])
+
+    assert cropped.returncode == 0
+    assert cropped.stdout == plain.stdout, "the art must be exactly what it was"
+    assert "crop:" in cropped.err
+    assert str(paths["photo"]) in cropped.err, "the warning names the file it came from"
+    assert plain.err == "", "without --crop there is nothing to warn about"
+
+
+def test_crop_keeps_a_flat_image_and_warns(run, paths):
+    """A flat image has no content to keep, so cropping it is refused."""
+
+    plain = run([str(paths["solid_white"]), "--width", "20"])
+    cropped = run([str(paths["solid_white"]), "--width", "20", "--crop"])
+
+    assert cropped.returncode == 0
+    assert cropped.stdout == plain.stdout
+    assert "crop:" in cropped.err
+
+
+def test_crop_writes_the_warning_to_stderr_only(run, paths):
+    """A warning must never land in the art a pipeline is capturing."""
+
+    result = run([str(paths["photo"]), "--width", "20", "--crop"])
+    assert result.returncode == 0
+    assert "crop:" not in result.out
+    assert result.stderr.strip(), "the warning has to go somewhere"
+
+
+def test_crop_on_stdin_names_stdin(run, paths):
+    payload = paths["photo"].read_bytes()
+    result = run(["-", "--width", "20", "--crop"], stdin=payload)
+    assert result.returncode == 0
+    assert "<stdin>" in result.err

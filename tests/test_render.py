@@ -742,3 +742,47 @@ def test_html_has_one_line_per_row(images):
     canvas = canvas_of(images["photo"], width=12, color="truecolor")
     body = to_html(canvas, "truecolor").split('<pre class="ascii-art">', 1)[1].split("</pre>", 1)[0]
     assert body.strip("\n").count("\n") + 1 == canvas.rows
+
+
+# ---------------------------------------------------------------------- crop
+
+
+def test_crop_is_off_unless_it_is_asked_for(images):
+    """The default pipeline must not silently start cropping."""
+
+    image = images["plate"]
+
+    assert RenderOptions().crop is False
+    assert (
+        canvas_of(image, width=40).plain_text()
+        == canvas_of(image, width=40, crop=False).plain_text()
+    )
+
+
+def test_crop_fills_the_grid_with_the_subject(images):
+    """Same grid, same mode: the subject is what gets bigger."""
+
+    # Black plate, white block: after the crop the whole image is ink, so the
+    # canvas can only be full when the margin really is gone.
+    image = fixtures.plate(background=(0, 0, 0), ink=(255, 255, 255))
+    plain = canvas_of(image, width=40)
+    cropped = canvas_of(image, width=40, crop=True)
+
+    assert plain.cols == cropped.cols == 40
+    # The margin was 40 px on a 240x160 plate, so the cropped source is 160x80
+    # and the aspect -- hence the derived row count -- follows the subject.
+    assert (plain.rows, cropped.rows) == (13, 10)
+    assert len(plain.ink_cells()) < len(cropped.ink_cells())
+    assert len(cropped.ink_cells()) == cropped.cols * cropped.rows
+
+
+def test_crop_leaves_a_borderless_image_alone_and_warns(images):
+    """A crop that finds nothing is not an error, and not a silent no-op."""
+
+    image = images["photo"]
+    plain = canvas_of(image, width=40)
+    cropped = canvas_of(image, width=40, crop=True)
+
+    assert plain.plain_text() == cropped.plain_text()
+    assert cropped.warnings and "crop:" in cropped.warnings[0]
+    assert plain.warnings == []

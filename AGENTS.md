@@ -20,6 +20,11 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - `src/ascii_art/render.py` owns the pipeline; `cli.py` only parses arguments,
   applies the pipe/exit-code contract, and prints. Keep it that way — the
   library is the product.
+- `src/ascii_art/crop.py` is the `--crop` pre-processing step, and it runs
+  *before* the tone filters and the geometry: cropping changes the source size,
+  so the geometry — and with it the cell budget the web front end checks before
+  rendering — depends on it.  Both `render` and `web._check_cell_budget` walk
+  `render.preprocess` for exactly that reason; never re-implement the order.
 - One quantiser (`src/ascii_art/dither.py`) serves every mode: a grid of desired
   ink coverage in `[0, 1]` is mapped onto a sorted list of achievable targets.
   A new mode should express itself as (sub-samples per cell, targets) rather than
@@ -33,10 +38,13 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - `src/ascii_art/web.py` is a browser front end over the renderer, not a second
   renderer: it parses a multipart form into `RenderOptions` (fields are named
   after the CLI flags), decodes via the library's own `load_image` stdin path,
-  and returns `format_canvas` output. It is stdlib-only (`http.server`), never
-  writes uploads to disk, and caps body size (`ASCII_ART_MAX_BODY_BYTES`),
-  decoded pixels (`ASCII_ART_MAX_PIXELS`) and the output grid
-  (`ASCII_ART_MAX_CELLS`, enforced on the resolved geometry before rendering).
+  and returns `format_canvas` output plus the canvas's warnings.  It is
+  stdlib-only (`http.server`), never writes uploads to disk, and caps body size
+  (`ASCII_ART_MAX_BODY_BYTES`), decoded pixels (`ASCII_ART_MAX_PIXELS`) and the
+  output grid (`ASCII_ART_MAX_CELLS`, enforced on the resolved geometry before
+  rendering).  The *page* preselects `braille` and re-renders on a mode-tile
+  click; the *server* keeps the CLI defaults, and `tests/test_web.py` asserts
+  both halves so the divergence is deliberate rather than drift.
   `Dockerfile`/`docker-compose.yml` package it; see the README's
   "Running it on a host" section.
 - Static assets (favicon, app icons, webmanifest) live in
@@ -66,6 +74,14 @@ This file is the project's committed home for project-intrinsic agent knowledge:
   BLANK` is not whitespace, so it survives a strip while drawing nothing, and
   `ink_cells()` would then report a blank braille canvas as full of ink. That
   false pass hid the braille collapse once already.
+- **A crop may never empty an image, and must never eat content.** The border
+  scan is per side and per row/column: only a row or column that is *entirely*
+  the edge colour it came from is dropped, so subject content stops the scan on
+  that side (the other sides may still move).  A flat image, an image with no
+  flat margin, and an image whose alpha holds nothing are returned unchanged
+  with a warning on `Canvas.warnings`.  The library never prints: the CLI writes
+  those warnings to stderr (stdout stays pure art) and the web app returns them
+  in its JSON and shows them under the stage.
 - **A colour depth must never change the glyph grid** — it may only add escapes.
   `_attach_cell_colors`/`_attach_two_colour_grids` set colour and nothing else;
   `--color 2` is the terminal background plus one forced ink colour, with tone

@@ -13,6 +13,7 @@ isolates one behaviour:
 ``checker``                  1px checkerboard (area-average downsampling)
 ``alpha_probe``              transparent | opaque | transparent (alpha handling)
 ``solid``                    which background a tool assumes
+``plate``                    flat margin around a block (``--crop``)
 ``big``                      4000x3000 source (performance)
 ===========================  ==================================================
 
@@ -207,6 +208,29 @@ def solid(value: int = 255, width: int = 100, height: int = 50) -> Image.Image:
     return Image.new("RGB", (width, height), (value, value, value))
 
 
+def plate(
+    width: int = 240,
+    height: int = 160,
+    margin: int = 40,
+    background: tuple = (255, 255, 255),
+    ink: tuple = (0, 0, 0),
+) -> Image.Image:
+    """A flat plate with a centred block of ink: the ``--crop`` probe.
+
+    The margin is uniform by construction, so the crop box is exact and the
+    assertions can name it: ``(margin, margin, width - margin, height - margin)``.
+    Pass ``background=(0, 0, 0), ink=(255, 255, 255)`` when the *cropped*
+    result, not the plate, is what has to ink the canvas.
+    """
+
+    image = Image.new("RGB", (width, height), background)
+    draw = ImageDraw.Draw(image)
+    draw.rectangle(
+        (margin, margin, width - 1 - margin, height - 1 - margin), fill=ink
+    )
+    return image
+
+
 def _wordmark(
     background: tuple, ink: tuple, width: int, height: int
 ) -> Image.Image:
@@ -322,6 +346,7 @@ FIXTURES = {
     "alpha": alpha_probe,
     "logo_light": logo_light,
     "logo_dark": logo_dark,
+    "plate": plate,
 }
 
 
@@ -360,6 +385,7 @@ __all__ = [
     "logo_dark",
     "logo_light",
     "photo",
+    "plate",
     "ramp_gradient",
     "shapes",
     "solid",
