@@ -109,7 +109,11 @@ def test_index_serves_the_browser_interface(server) -> None:
 
 
 class _NumberInputs(HTMLParser):
-    """Collect ``<input type="number">`` defaults from the served page."""
+    """Collect ``<input type="number">`` and ``<input type="range">`` defaults.
+
+    Both are constrained controls: a browser refuses to submit a form whose
+    default sits outside its own ``min``/``max``/``step``.
+    """
 
     def __init__(self) -> None:
         super().__init__()
@@ -117,7 +121,7 @@ class _NumberInputs(HTMLParser):
 
     def handle_starttag(self, tag, attrs) -> None:
         attributes = dict(attrs)
-        if tag == "input" and attributes.get("type") == "number":
+        if tag == "input" and attributes.get("type") in ("number", "range"):
             self.inputs.append(attributes)
 
 
@@ -613,3 +617,61 @@ def test_declared_and_package_versions_agree() -> None:
 
     assert match, "pyproject.toml must declare a version"
     assert match.group(1) == __version__
+
+
+def test_width_is_a_slider_with_a_usable_range(server) -> None:
+    """Width is a slider: 10..300 whole cells, defaulting to the piped width."""
+
+    status, _, body = _request(server.server_port, "GET", "/")
+    assert status == 200
+    parser = _NumberInputs()
+    parser.feed(body.decode("utf-8"))
+    width = [control for control in parser.inputs if control.get("name") == "width"]
+
+    assert len(width) == 1, "exactly one width control"
+    assert width[0]["type"] == "range", "width is a slider, not a number field"
+    assert (width[0]["min"], width[0]["max"], width[0]["step"]) == ("10", "300", "1")
+    assert width[0]["value"] == "80", "the slider starts at the piped default 80"
+
+
+def test_size_and_width_together_are_refused(server) -> None:
+    """The reason the page disables the slider while `size` is filled in."""
+
+    body, content_type = multipart_body(
+        {"width": "80", "size": "80x40"}, image=_png_bytes()
+    )
+    status, _, raw = _request(
+        server.server_port, "POST", "/render", body=body,
+        headers={"Content-Type": content_type},
+    )
+
+    assert status == 400
+    assert "size" in json.loads(raw.decode("utf-8"))["error"]
+
+
+def test_a_filled_in_size_disables_the_width_slider(server) -> None:
+    """`size` wins over the slider, and a disabled control is not submitted."""
+
+    status, _, body = _request(server.server_port, "GET", "/")
+    assert status == 200
+    html = body.decode("utf-8")
+
+    assert "function syncSize()" in html
+    assert "widthSlider.disabled = sized;" in html
+    assert "sizeInput.addEventListener" in html
+    assert "clear it to use this slider" in html, "the hint that explains the lock"
+
+
+def test_rotate_is_a_free_angle_slider(server) -> None:
+    """Rotate is a slider over the whole circle, not four choices."""
+
+    status, _, body = _request(server.server_port, "GET", "/")
+    assert status == 200
+    parser = _NumberInputs()
+    parser.feed(body.decode("utf-8"))
+    rotate = [control for control in parser.inputs if control.get("name") == "rotate"]
+
+    assert len(rotate) == 1
+    assert rotate[0]["type"] == "range"
+    assert (rotate[0]["min"], rotate[0]["max"], rotate[0]["step"]) == ("0", "360", "1")
+    assert rotate[0]["value"] == "0"

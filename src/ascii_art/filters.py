@@ -21,6 +21,9 @@ SCALAR_RANGES = {
     "gamma": (0.01, 10.0),
 }
 
+#: Rotation is free-form: any whole degree, and 360 is the same as no rotation.
+ROTATE_RANGES = (0, 360)
+
 
 @dataclass(frozen=True)
 class FilterSpec:
@@ -50,8 +53,9 @@ def validate(spec: FilterSpec) -> None:
         value = getattr(spec, name)
         if not low <= value <= high:
             raise UsageError(f"--{name} must be between {low} and {high}")
-    if spec.rotate not in (0, 90, 180, 270):
-        raise UsageError("--rotate must be one of 90, 180, 270")
+    low, high = ROTATE_RANGES
+    if not low <= spec.rotate <= high:
+        raise UsageError(f"--rotate must be between {low} and {high} degrees")
 
 
 def _gamma_lut(gamma: float) -> list:
@@ -69,7 +73,15 @@ def apply_filters(image: Image.Image, spec: FilterSpec) -> Image.Image:
 
     # Geometry first: the output grid is derived from the final dimensions.
     if spec.rotate:
-        image = image.rotate(-spec.rotate, expand=True)
+        # Pillow takes a transpose fast path for 0/90/180/270 regardless of the
+        # filter, so those stay exact and pixel-for-pixel as they always were;
+        # the resample only bites on the free angles, where it is what keeps a
+        # slanted edge from coming out as a staircase.  Expanding leaves corners
+        # filled with the fill colour: transparent for RGBA, black for RGB --
+        # both of which are "no ink" on a dark background.
+        image = image.rotate(
+            -spec.rotate, resample=Image.Resampling.BICUBIC, expand=True
+        )
     if spec.flip_x:
         image = ImageOps.mirror(image)
     if spec.flip_y:
@@ -97,4 +109,4 @@ def apply_filters(image: Image.Image, spec: FilterSpec) -> Image.Image:
     return Image.merge("RGBA", (*rgb.split(), alpha))
 
 
-__all__ = ["FilterSpec", "SCALAR_RANGES", "apply_filters", "validate"]
+__all__ = ["FilterSpec", "ROTATE_RANGES", "SCALAR_RANGES", "apply_filters", "validate"]

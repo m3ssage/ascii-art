@@ -196,6 +196,13 @@ Photo: Pexels, photo 31284696 (pexels.com) — free to use and redistribute.
   entirely that colour. An image with no flat margin — a photo, a gradient, a
   textured edge — is returned unchanged with a warning instead of cropped to
   something surprising, and a flat image is never cropped to nothing.
+* `--rotate` takes any whole degree from 0 to 360, clockwise. The four quarter
+  turns stay exact — Pillow transposes for them whatever the resample filter is,
+  so they are pixel-for-pixel what they always were — and a free angle (45, 137,
+  anything) is resampled with BICUBIC, which is what keeps a slanted edge from
+  turning into a staircase. A free angle expands the canvas, so the new corners
+  are the fill colour: transparent for an image with alpha, black for an opaque
+  one, both of which read as no ink on a dark background.
 * Output is deterministic. `--dither noise` is only random with `--seed`, and
   even then it is reproducible from the seed.
 

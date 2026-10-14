@@ -668,7 +668,46 @@ def test_filter_validation_rejects_out_of_range():
     with pytest.raises(UsageError):
         validate(FilterSpec(brightness=-1.0))
     with pytest.raises(UsageError):
-        validate(FilterSpec(rotate=45))
+        validate(FilterSpec(rotate=-1))
+    with pytest.raises(UsageError):
+        validate(FilterSpec(rotate=361))
+
+
+def test_rotation_is_free_form_but_multiples_of_90_stay_exact(images):
+    """Any angle is allowed; 0/90/180/270 must not change one pixel.
+
+    Pillow takes a transpose fast path for those four regardless of the resample
+    filter, so adding BICUBIC for the free angles cannot alter them.
+    """
+
+    image = fixtures.photo(48, 32).convert("RGBA")
+
+    # ``--rotate`` turns clockwise, so 90 degrees is Pillow's ROTATE_270.
+    for angle, transpose in (
+        (90, Image.Transpose.ROTATE_270),
+        (180, Image.Transpose.ROTATE_180),
+        (270, Image.Transpose.ROTATE_90),
+    ):
+        assert (
+            apply_filters(image, FilterSpec(rotate=angle)).tobytes()
+            == image.transpose(transpose).tobytes()
+        ), f"{angle} degrees must stay exact"
+
+    assert apply_filters(image, FilterSpec(rotate=360)).tobytes() == image.tobytes()
+
+
+def test_a_free_angle_rotates_and_gains_transparent_corners():
+    """What a 45-degree turn costs: a bigger canvas with empty corners."""
+
+    image = Image.new("RGBA", (40, 40), (255, 255, 255, 255))
+    turned = apply_filters(image, FilterSpec(rotate=45))
+
+    assert turned.size != image.size, "expand must make room"
+    assert turned.getpixel((0, 0))[3] == 0, "the corner is transparent, not white"
+    assert turned.getpixel((turned.width // 2, turned.height // 2)) == (255, 255, 255, 255)
+    assert (
+        turned.tobytes() != apply_filters(image, FilterSpec(rotate=90)).tobytes()
+    ), "45 degrees is not 90 degrees"
 
 
 # -------------------------------------------------------------------- loader

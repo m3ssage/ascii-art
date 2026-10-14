@@ -674,3 +674,37 @@ def test_crop_on_stdin_names_stdin(run, paths):
     result = run(["-", "--width", "20", "--crop"], stdin=payload)
     assert result.returncode == 0
     assert "<stdin>" in result.err
+
+
+# --------------------------------------------------------------------- rotate
+
+
+def test_rotate_accepts_any_angle(run, paths):
+    """Free rotation is a real option now: 45 degrees renders, quietly."""
+
+    straight = run([str(paths["shapes"]), "--width", "30"])
+    turned = run([str(paths["shapes"]), "--width", "30", "--rotate", "45"])
+
+    assert turned.returncode == 0
+    assert turned.stdout != straight.stdout, "45 degrees must change the render"
+    assert turned.err == ""
+
+
+def test_rotate_out_of_range_is_a_usage_error(run, paths):
+    """Past 360 the value is refused, not silently wrapped."""
+
+    result = run([str(paths["photo"]), "--width", "20", "--rotate", "400"])
+
+    assert result.returncode == 1
+    assert result.stdout == b"", "a usage error must never write to stdout"
+    assert "rotate" in result.err and "360" in result.err
+
+
+def test_rotate_90_is_still_the_exact_quarter_turn(run, paths):
+    """The old angles must not drift when free angles arrive."""
+
+    quarter = run([str(paths["photo"]), "--width", "24", "--rotate", "90", "--format", "text"])
+    full = run([str(paths["photo"]), "--width", "24", "--rotate", "360", "--format", "text"])
+
+    assert quarter.returncode == 0 and full.returncode == 0
+    assert quarter.stdout != full.stdout, "a quarter turn is not a no-op"
