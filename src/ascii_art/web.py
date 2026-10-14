@@ -1078,14 +1078,34 @@ INDEX_HTML = r"""<!doctype html>
     renderNow();
   });
 
-  // The mode tiles are the one control that re-renders on click: picking a mode
-  // is a decision about the picture itself.  The sliders and selects stay
-  // passive -- rendering on every slider step would hammer the server for a
-  // picture nobody asked to see yet.  No image chosen means no request.
+  // Every control that shapes the picture re-renders it, so the Render button is
+  // only there to start the first render.  Tiles, selects, checkboxes and
+  // number/text fields commit once per change and are coalesced by a short
+  // debounce; the sliders wait longer, because dragging one fires an input event
+  // per pixel and nobody wants a request per pixel.  No image chosen means no
+  // request at all -- there is nothing to render.
+  var renderTimer = null;
+
+  function scheduleRender(delay) {
+    if (!file) return;
+    clearTimeout(renderTimer);
+    renderTimer = setTimeout(renderNow, delay);
+  }
+
   form.querySelectorAll('input[name="mode"]').forEach(function (radio) {
-    radio.addEventListener("change", function () {
-      if (file) renderNow();
-    });
+    radio.addEventListener("change", function () { scheduleRender(120); });
+  });
+  form.querySelectorAll("select").forEach(function (select) {
+    select.addEventListener("change", function () { scheduleRender(120); });
+  });
+  form.querySelectorAll('input[type="checkbox"]').forEach(function (box) {
+    box.addEventListener("change", function () { scheduleRender(120); });
+  });
+  form.querySelectorAll('input[type="number"], input[type="text"]').forEach(function (field) {
+    field.addEventListener("change", function () { scheduleRender(120); });
+  });
+  form.querySelectorAll('input[type="range"]').forEach(function (slider) {
+    slider.addEventListener("input", function () { scheduleRender(250); });
   });
 
   function fallbackCopy(text) {
