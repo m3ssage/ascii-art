@@ -90,51 +90,17 @@ print(to_text(canvas))
 
 ## Example
 
-The input, `examples/sunflower.jpg` — a crop of a Pexels sunflower photo,
-downscaled to 1200 px on its long edge so the repository stays small:
+The web front end renders the same cat photo in the browser. Braille mode with
+diffusion dithering:
 
-![Sunflower](examples/sunflower.jpg)
+![Braille mode with diffusion dithering](examples/web-braille.png)
 
-At 60 columns a whole photo is mostly texture, so the framing is the flower
-itself and a compact ten-glyph ramp keeps the shape readable:
+Ramp mode with the default measured ramp:
 
-```console
-$ .venv/bin/ascii-art examples/sunflower.jpg --width 60 --chars " .:-=+*#%@"
-```
+![Ramp mode with the default measured ramp](examples/web-ramp.png)
 
-```text
-#############################*+=+*######**+********=::::::+*
-#*****#################*+*####****####**+*########**+===:::+
-#*+==***###############**++*###**#####**##%###########***+:=
-**+===+****##****#####*+**#***##############*******######*=:
-*+=:::==+***##******##*++*+*#**#****+*************########*=
-+++===::==***#**##****#*++=====************###***###******+:
-+**++==::===+**+******=:--::-::::::=+*****###***##**=:::=::-
-=++++******+*******+:-:-------::::=::::+***********+*****+++
-*+****####******##+:--.--..-.-.----::==:***###*****###*=****
-******++*##*+++**=.-...-........-.-::::-+******##***====****
-#####******##***+....-....-..-....-..-:::**####**+=++**=+***
-#**++++*****+++*+..................---:-+*********###**++***
-####*+*+**++++===..-..............-.:-:=**++=*+==+++********
-####***######***+:--......-.....-..:::+*+++*####********####
-#####**####***+==++==-........--:=:+*+++++++*########****###
-#####********+++++=====+:==:+++=*******++===+*#########**###
-#########**++++++++=+=+++*+=**++*#*******++++**##%%%%%##***#
-#####****#*+++***+=+*#+*+**+**++++*****###********#%%%%##***
-##****###*==+**#*+*###***+++++++++*#####################**+=
-##*+=:::**=+***######**++++==+++=+####%###*+===**##*****+=::
-##**=:=+*+=*##**+******+++==+=*++=######*+::::::=++==:::::::
-***=:=*****####*+=:=+**====**=**+=*####*=:::::::=:===::::::-
-:::::=**##****##***++**===***=*****####*::::::::::::::::::::
-:::::=**###****######********=*#*#####*+:::::::::::::==:::::
-```
-
-Rerun that command against the committed file to reproduce the block above.
-The ramp was measured with JetBrainsMono Nerd Font, so another installed
-monospace font can put different glyphs in the cells. The framing is baked into
-`examples/sunflower.jpg` so the block above reproduces byte for byte; `--crop`
-would not change it, because a photograph has no flat margin to find.
-Photo: Pexels, photo 31284696 (pexels.com) — free to use and redistribute.
+The page re-renders on every control change — tiles, selects, checkboxes and
+number fields alike — so the Render button only starts the first render.
 
 ## The option surface
 
